@@ -37,4 +37,10 @@ jobs:
       run: |
         flutter pub get
         cp lib/dummy_dsn.dart lib/dsn.dart
-        flutter build apk --debug
+        flutter build apk
+    - name: Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: app
+        path: build/app/outputs/flutter-apk/app.apk
+
