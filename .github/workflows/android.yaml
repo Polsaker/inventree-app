@@ -38,7 +38,7 @@ jobs:
         flutter pub get
         cp lib/dummy_dsn.dart lib/dsn.dart
         flutter build apk
-    - name: Artifact
+    - name: Artifact2
       uses: actions/upload-artifact@v3
       with:
         name: app
