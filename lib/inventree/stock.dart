@@ -276,8 +276,6 @@ class InvenTreeStockItem extends InvenTreeModel {
     });
   }
 
-  String get uid => (jsondata["uid"] ?? "") as String;
-
   int get status => (jsondata["status"] ?? -1) as int;
 
   String get packaging => (jsondata["packaging"] ?? "") as String;
@@ -652,13 +650,18 @@ class InvenTreeStockLocation extends InvenTreeModel {
 
   @override
   Map<String, dynamic> formFields() {
-    return {
+    Map<String, dynamic> fields = {
       "name": {},
       "description": {},
-      "parent": {
-
-      },
+      "parent": {},
+      "structural": {},
     };
+
+    if (!api.supportsStructuralCategories) {
+      fields.remove("structural");
+    }
+
+    return fields;
   }
 
   String get parentPathString {
