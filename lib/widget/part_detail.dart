@@ -2,7 +2,6 @@ import "package:flutter/material.dart";
 
 import "package:font_awesome_flutter/font_awesome_flutter.dart";
 
-import "package:inventree/api.dart";
 import "package:inventree/app_colors.dart";
 import "package:inventree/barcode.dart";
 import "package:inventree/l10.dart";
@@ -25,6 +24,7 @@ import "package:inventree/widget/part_image_widget.dart";
 import "package:inventree/widget/snacks.dart";
 import "package:inventree/widget/stock_detail.dart";
 import "package:inventree/widget/stock_list.dart";
+import "package:inventree/widget/supplier_part_list.dart";
 
 
 /*
@@ -72,7 +72,7 @@ class _PartDisplayState extends RefreshableState<PartDetailWidget> {
 
     List<Widget> actions = [];
 
-    if (InvenTreeAPI().checkPermission("part", "view")) {
+    if (api.checkPermission("part", "view")) {
       actions.add(
         IconButton(
           icon: FaIcon(FontAwesomeIcons.globe),
@@ -81,10 +81,10 @@ class _PartDisplayState extends RefreshableState<PartDetailWidget> {
       );
     }
 
-    if (InvenTreeAPI().checkPermission("part", "change")) {
+    if (api.checkPermission("part", "change")) {
       actions.add(
         IconButton(
-          icon: FaIcon(FontAwesomeIcons.edit),
+          icon: FaIcon(FontAwesomeIcons.penToSquare),
           tooltip: L10().edit,
           onPressed: () {
             _editPartDialog(context);
@@ -117,6 +117,7 @@ class _PartDisplayState extends RefreshableState<PartDetailWidget> {
     if (!result || part.pk == -1) {
       // Part could not be loaded, for some reason
       Navigator.of(context).pop();
+      return;
     }
 
     // If the part points to a parent "template" part, request that too
@@ -142,7 +143,7 @@ class _PartDisplayState extends RefreshableState<PartDetailWidget> {
     });
 
     // Request the number of parameters for this part
-    if (InvenTreeAPI().supportsPartParameters) {
+    if (api.supportsPartParameters) {
 
       showParameters = await InvenTreeSettingsManager().getValue(INV_PART_SHOW_PARAMETERS, true) as bool;
 
@@ -220,7 +221,7 @@ class _PartDisplayState extends RefreshableState<PartDetailWidget> {
    */
   Future <void> _toggleStar(BuildContext context) async {
 
-    if (InvenTreeAPI().checkPermission("part", "view")) {
+    if (api.checkPermission("part", "view")) {
       showLoadingOverlay(context);
       await part.update(values: {"starred": "${!part.starred}"});
       hideLoadingOverlay();
@@ -254,7 +255,7 @@ class _PartDisplayState extends RefreshableState<PartDetailWidget> {
             },
           ),
           leading: GestureDetector(
-            child: InvenTreeAPI().getImage(part.thumbnail),
+            child: api.getImage(part.thumbnail),
             onTap: () {
               Navigator.push(
                 context,
@@ -302,7 +303,7 @@ class _PartDisplayState extends RefreshableState<PartDetailWidget> {
             )
           ),
           leading: FaIcon(
-              FontAwesomeIcons.exclamationCircle,
+              FontAwesomeIcons.circleExclamation,
               color: COLOR_DANGER
           ),
         )
@@ -314,7 +315,7 @@ class _PartDisplayState extends RefreshableState<PartDetailWidget> {
         ListTile(
           title: Text(L10().templatePart),
           subtitle: Text(parentPart!.fullname),
-          leading: InvenTreeAPI().getImage(
+          leading: api.getImage(
             parentPart!.thumbnail,
             width: 32,
             height: 32,
@@ -393,7 +394,7 @@ class _PartDisplayState extends RefreshableState<PartDetailWidget> {
       ListTile(
         title: Text(L10().availableStock),
         subtitle: Text(L10().stockDetails),
-        leading: FaIcon(FontAwesomeIcons.boxes, color: COLOR_CLICK),
+        leading: FaIcon(FontAwesomeIcons.boxesStacked, color: COLOR_CLICK),
         trailing: Text(
           part.stockString(),
           style: TextStyle(
@@ -416,7 +417,7 @@ class _PartDisplayState extends RefreshableState<PartDetailWidget> {
         ListTile(
           title: Text(L10().onOrder),
           subtitle: Text(L10().onOrderDetails),
-          leading: FaIcon(FontAwesomeIcons.shoppingCart),
+          leading: FaIcon(FontAwesomeIcons.cartShopping),
           trailing: Text("${part.onOrderString}"),
           onTap: () {
             // TODO - Order views
@@ -433,7 +434,7 @@ class _PartDisplayState extends RefreshableState<PartDetailWidget> {
         tiles.add(
             ListTile(
                 title: Text(L10().billOfMaterials),
-                leading: FaIcon(FontAwesomeIcons.thList, color: COLOR_CLICK),
+                leading: FaIcon(FontAwesomeIcons.tableList, color: COLOR_CLICK),
                 trailing: Text(bomCount.toString()),
                 onTap: () {
                   Navigator.push(
@@ -451,7 +452,7 @@ class _PartDisplayState extends RefreshableState<PartDetailWidget> {
         tiles.add(
             ListTile(
               title: Text(L10().building),
-              leading: FaIcon(FontAwesomeIcons.tools),
+              leading: FaIcon(FontAwesomeIcons.screwdriverWrench),
               trailing: Text("${simpleNumberString(part.building)}"),
               onTap: () {
                 // TODO
@@ -522,28 +523,31 @@ class _PartDisplayState extends RefreshableState<PartDetailWidget> {
     }
 
     if (part.isPurchaseable) {
-      tiles.add(
-          ListTile(
-            title: Text(L10().suppliers),
-            leading: FaIcon(FontAwesomeIcons.industry),
-            trailing: Text("${part.supplierCount}"),
-            /* TODO:
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => PartSupplierWidget(part))
-                );
-              },
-               */
-          )
-      );
+
+      if (part.supplierCount > 0) {
+        tiles.add(
+            ListTile(
+              title: Text(L10().suppliers),
+              leading: FaIcon(FontAwesomeIcons.industry, color: COLOR_CLICK),
+              trailing: Text("${part.supplierCount}"),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => SupplierPartList({
+                      "part": part.pk.toString()
+                    }))
+                  );
+                },
+            )
+        );
+      }
     }
 
     if (showParameters) {
       tiles.add(
           ListTile(
               title: Text(L10().parameters),
-              leading: FaIcon(FontAwesomeIcons.thList, color: COLOR_CLICK),
+              leading: FaIcon(FontAwesomeIcons.tableList, color: COLOR_CLICK),
               trailing: parameterCount > 0 ? Text(parameterCount.toString()) : null,
               onTap: () {
                 Navigator.push(
@@ -561,7 +565,7 @@ class _PartDisplayState extends RefreshableState<PartDetailWidget> {
     tiles.add(
         ListTile(
           title: Text(L10().notes),
-          leading: FaIcon(FontAwesomeIcons.stickyNote, color: COLOR_CLICK),
+          leading: FaIcon(FontAwesomeIcons.noteSticky, color: COLOR_CLICK),
           trailing: Text(""),
           onTap: () {
             Navigator.push(
@@ -575,7 +579,7 @@ class _PartDisplayState extends RefreshableState<PartDetailWidget> {
     tiles.add(
       ListTile(
         title: Text(L10().attachments),
-        leading: FaIcon(FontAwesomeIcons.fileAlt, color: COLOR_CLICK),
+        leading: FaIcon(FontAwesomeIcons.fileLines, color: COLOR_CLICK),
         trailing: attachmentCount > 0 ? Text(attachmentCount.toString()) : null,
         onTap: () {
           Navigator.push(
@@ -584,7 +588,7 @@ class _PartDisplayState extends RefreshableState<PartDetailWidget> {
               builder: (context) => AttachmentWidget(
                   InvenTreePartAttachment(),
                   part.pk,
-                  InvenTreeAPI().checkPermission("part", "change"))
+                  api.checkPermission("part", "change"))
             )
           );
         },
@@ -641,7 +645,7 @@ class _PartDisplayState extends RefreshableState<PartDetailWidget> {
     if (part.isTrackable) {
       // read the next available serial number
       showLoadingOverlay(context);
-      var response = await InvenTreeAPI().get("/api/part/${part.pk}/serial-numbers/", expectedStatusCode: null);
+      var response = await api.get("/api/part/${part.pk}/serial-numbers/", expectedStatusCode: null);
       hideLoadingOverlay();
 
       if (response.isValid() && response.statusCode == 200) {
@@ -696,9 +700,9 @@ class _PartDisplayState extends RefreshableState<PartDetailWidget> {
       )
     );
 
-    if (InvenTreeAPI().supportModernBarcodes) {
+    if (api.supportModernBarcodes) {
       tiles.add(
-        customBarcodeActionTile(context, part.customBarcode, "part", part.pk)
+        customBarcodeActionTile(context, this, part.customBarcode, "part", part.pk)
       );
     }
 
@@ -744,11 +748,11 @@ class _PartDisplayState extends RefreshableState<PartDetailWidget> {
       onTap: onTabSelectionChanged,
       items: <BottomNavigationBarItem> [
         BottomNavigationBarItem(
-          icon: FaIcon(FontAwesomeIcons.infoCircle),
+          icon: FaIcon(FontAwesomeIcons.circleInfo),
           label: L10().details,
         ),
         BottomNavigationBarItem(
-          icon: FaIcon(FontAwesomeIcons.boxes),
+          icon: FaIcon(FontAwesomeIcons.boxesStacked),
           label: L10().stock
         ),
         BottomNavigationBarItem(

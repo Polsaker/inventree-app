@@ -1,6 +1,48 @@
 ## InvenTree App Release Notes
 ---
 
+### 0.10.2 - March 2023
+---
+
+- Adds support for proper currency rendering
+- Fix icon for supplier part detail widget
+- Support global search API endpoint
+- Updated translations
+
+### 0.10.1 - February 2023 
+---
+
+- Add support for attachments on Companies
+- Fix duplicate scanning of barcodes
+- Updated translations
+
+### 0.10.0 - February 2023
+---
+
+- Add support for Supplier Parts
+- Updated translations
+
+### 0.9.3 - February 2023
+---
+
+- Updates to match latest server API
+- Bug fix for empty HttpResponse from server
+
+### 0.9.2 - December 2022
+---
+
+- Support custom icons for part category
+- Support custom icons for stock location
+- Adjustments to notification messages
+- Assorted bug fixes
+- Updated translations
+
+### 0.9.1 - December 2022
+---
+
+- Bug fixes for custom barcode actions
+- Updated translations
+
 ### 0.9.0 - December 2022
 ---
 
