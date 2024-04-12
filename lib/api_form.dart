@@ -9,12 +9,15 @@ import "package:flutter/material.dart";
 
 import "package:inventree/api.dart";
 import "package:inventree/app_colors.dart";
-import "package:inventree/barcode.dart";
+import "package:inventree/barcode/barcode.dart";
+import "package:inventree/barcode/tones.dart";
 import "package:inventree/helpers.dart";
+import "package:inventree/inventree/sales_order.dart";
 import "package:inventree/l10.dart";
 
 import "package:inventree/inventree/company.dart";
 import "package:inventree/inventree/part.dart";
+import "package:inventree/inventree/project_code.dart";
 import "package:inventree/inventree/sentry.dart";
 import "package:inventree/inventree/stock.dart";
 
@@ -273,6 +276,7 @@ class APIFormField {
 
   // Construct a widget for this input
   Widget constructField(BuildContext context) {
+
     switch (type) {
       case "string":
       case "url":
@@ -296,7 +300,7 @@ class APIFormField {
       default:
         return ListTile(
           title: Text(
-            "Unsupported field type: '${type}'",
+            "Unsupported field type: '${type}' for field '${name}'",
             style: TextStyle(
                 color: COLOR_DANGER,
                 fontStyle: FontStyle.italic),
@@ -346,11 +350,7 @@ class APIFormField {
               );
             });
 
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => InvenTreeQRView(handler)
-              )
-            );
+            scanBarcode(context, handler: handler);
           },
         ),
       )
@@ -477,6 +477,8 @@ class APIFormField {
   // Construct a floating point numerical input field
   Widget _constructFloatField() {
 
+    double initial = double.tryParse(value.toString()) ?? 0;
+
     return TextFormField(
       decoration: InputDecoration(
         labelText: required ? label + "*" : label,
@@ -485,7 +487,7 @@ class APIFormField {
         helperStyle: _helperStyle(),
         hintText: placeholderText,
       ),
-      initialValue: simpleNumberString(double.tryParse(value.toString()) ?? 0),
+      initialValue: simpleNumberString(initial),
       keyboardType: TextInputType.numberWithOptions(signed: true, decimal: true),
       validator: (value) {
 
@@ -512,7 +514,7 @@ class APIFormField {
         isFilterOnline: true,
         showSearchBox: true,
         itemBuilder: (context, item, isSelected) {
-          return _renderRelatedField(item, isSelected, true);
+          return _renderRelatedField(name, item, isSelected, true);
         },
         emptyBuilder: (context, item) {
           return _renderEmptyResult();
@@ -523,27 +525,19 @@ class APIFormField {
       ),
       selectedItem: initial_data,
       asyncItems: (String filter) async {
-        Map<String, String> filters = {};
+        Map<String, String> _filters = {
+          ..._relatedFieldFilters(),
+          ...filters,
+        };
 
-        filters.forEach((key, value) {
-          filters[key] = value;
-        });
+        _filters["search"] = filter;
+        _filters["offset"] = "0";
+        _filters["limit"] = "25";
 
-        filters["search"] = filter;
-        filters["offset"] = "0";
-        filters["limit"] = "25";
-
-        final APIResponse response =
-            await InvenTreeAPI().get(api_url, params: filters);
+        final APIResponse response = await InvenTreeAPI().get(api_url, params: _filters);
 
         if (response.isValid()) {
-          List<dynamic> results = [];
-
-          for (var result in response.data["results"] ?? []) {
-            results.add(result);
-          }
-
-          return results;
+          return response.resultsList();
         } else {
           return [];
         }
@@ -572,7 +566,7 @@ class APIFormField {
         }
       },
       dropdownBuilder: (context, item) {
-        return _renderRelatedField(item, true, false);
+        return _renderRelatedField(name, item, true, false);
       },
       onSaved: (item) {
         if (item != null) {
@@ -588,46 +582,107 @@ class APIFormField {
           return false;
         }
 
-        return item["pk"] == selectedItem["pk"];
+        bool result = false;
+
+        try {
+          result = item["pk"].toString() == selectedItem["pk"].toString();
+        } catch (error) {
+          // Catch any conversion errors
+          result = false;
+        }
+
+        return result;
       });
   }
 
-  Widget _renderRelatedField(dynamic item, bool selected, bool extended) {
-    // Render a "related field" based on the "model" type
+  // Construct a set of custom filters for the dropdown search
+  Map<String, String> _relatedFieldFilters() {
+
+    switch (model) {
+      case "supplierpart":
+        return InvenTreeSupplierPart().defaultListFilters();
+      case "stockitem":
+        return InvenTreeStockItem().defaultListFilters();
+    }
+
+    return {};
+  }
+
+  // Render a "related field" based on the "model" type
+  Widget _renderRelatedField(String fieldName, dynamic item, bool selected, bool extended) {
 
     // Convert to JSON
-    var data = Map<String, dynamic>.from((item ?? {}) as Map);
+    Map<String, dynamic> data = {};
+
+    try {
+      if (item is Map<String, dynamic>) {
+        data = Map<String, dynamic>.from(item);
+      } else {
+        data = {};
+      }
+    } catch (error, stackTrace) {
+      data = {};
+
+      sentryReportError(
+        "_renderRelatedField", error, stackTrace,
+        context: {
+          "method": "_renderRelateField",
+          "field_name": fieldName,
+          "item": item.toString(),
+          "selected": selected.toString(),
+          "extended": extended.toString(),
+        }
+      );
+    }
 
     switch (model) {
       case "part":
-
         var part = InvenTreePart.fromJson(data);
 
         return ListTile(
           title: Text(
-            part.fullname,
+              part.fullname,
               style: TextStyle(fontWeight: selected && extended ? FontWeight.bold : FontWeight.normal)
           ),
           subtitle: extended ? Text(
             part.description,
             style: TextStyle(fontWeight: selected ? FontWeight.bold : FontWeight.normal),
           ) : null,
-          leading: extended ? InvenTreeAPI().getImage(part.thumbnail, width: 40, height: 40) : null,
+          leading: extended ? InvenTreeAPI().getThumbnail(part.thumbnail) : null,
         );
 
+      case "supplierpart":
+        var part = InvenTreeSupplierPart.fromJson(data);
+
+        return ListTile(
+          title: Text(part.SKU),
+          subtitle: Text(part.partName),
+          leading: extended ? InvenTreeAPI().getThumbnail(part.partImage) : null,
+          trailing: extended && part.supplierImage.isNotEmpty ? InvenTreeAPI().getThumbnail(part.supplierImage) : null,
+        );
       case "partcategory":
 
         var cat = InvenTreePartCategory.fromJson(data);
 
         return ListTile(
           title: Text(
-            cat.pathstring,
-            style: TextStyle(fontWeight: selected && extended ? FontWeight.bold : FontWeight.normal)
+              cat.pathstring,
+              style: TextStyle(fontWeight: selected && extended ? FontWeight.bold : FontWeight.normal)
           ),
           subtitle: extended ? Text(
             cat.description,
             style: TextStyle(fontWeight: selected ? FontWeight.bold : FontWeight.normal),
           ) : null,
+        );
+      case "stockitem":
+        var item = InvenTreeStockItem.fromJson(data);
+
+        return ListTile(
+          title: Text(
+            item.partName,
+          ),
+          leading: InvenTreeAPI().getThumbnail(item.partThumbnail),
+          trailing: Text(item.quantityString()),
         );
       case "stocklocation":
 
@@ -635,13 +690,21 @@ class APIFormField {
 
         return ListTile(
           title: Text(
-            loc.pathstring,
+              loc.pathstring,
               style: TextStyle(fontWeight: selected && extended ? FontWeight.bold : FontWeight.normal)
           ),
           subtitle: extended ? Text(
             loc.description,
             style: TextStyle(fontWeight: selected ? FontWeight.bold : FontWeight.normal),
           ) : null,
+        );
+      case "salesordershipment":
+        var shipment = InvenTreeSalesOrderShipment.fromJson(data);
+
+        return ListTile(
+          title: Text(shipment.reference),
+          subtitle: Text(shipment.tracking_number),
+          trailing: shipment.shipped ? Text(shipment.shipment_date!) : null,
         );
       case "owner":
         String name = (data["name"] ?? "") as String;
@@ -650,25 +713,35 @@ class APIFormField {
           title: Text(name),
           leading: FaIcon(isGroup ? FontAwesomeIcons.users : FontAwesomeIcons.user),
         );
+      case "contact":
+        String name = (data["name"] ?? "") as String;
+        String role = (data["role"] ?? "") as String;
+        return ListTile(
+          title: Text(name),
+          subtitle: Text(role),
+        );
       case "company":
         var company = InvenTreeCompany.fromJson(data);
         return ListTile(
-          title: Text(company.name),
-          subtitle: extended ? Text(company.description) : null,
-          leading: InvenTreeAPI().getImage(
-            company.thumbnail,
-            width: 40,
-            height: 40
-          )
+            title: Text(company.name),
+            subtitle: extended ? Text(company.description) : null,
+            leading: InvenTreeAPI().getThumbnail(company.thumbnail)
+        );
+      case "projectcode":
+        var project_code = InvenTreeProjectCode.fromJson(data);
+        return ListTile(
+            title: Text(project_code.code),
+            subtitle: Text(project_code.description),
+            leading: FaIcon(FontAwesomeIcons.list)
         );
       default:
         return ListTile(
           title: Text(
-            "Unsupported model",
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: COLOR_DANGER
-            )
+              "Unsupported model",
+              style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: COLOR_DANGER
+              )
           ),
           subtitle: Text("Model '${model}' rendering not supported"),
         );
@@ -690,6 +763,14 @@ class APIFormField {
 
   // Construct a string input element
   Widget _constructString() {
+
+    if (readOnly) {
+      return ListTile(
+        title: Text(label),
+        subtitle: Text(helpText),
+        trailing: Text(value.toString()),
+      );
+    }
 
     return TextFormField(
       decoration: InputDecoration(
@@ -719,12 +800,21 @@ class APIFormField {
   // Construct a boolean input element
   Widget _constructBoolean() {
 
+    bool? initial_value;
+
+    if (value is bool || value == null) {
+      initial_value = value as bool?;
+    } else {
+      String vs = value.toString().toLowerCase();
+      initial_value = ["1", "true", "yes"].contains(vs);
+    }
+
     return CheckBoxField(
       label: label,
       labelStyle: _labelStyle(),
       helperText: helpText,
       helperStyle: _helperStyle(),
-      initial: value as bool?,
+      initial: initial_value,
       tristate: (getParameter("tristate") ?? false) as bool,
       onSaved: (val) {
         data["value"] = val;
@@ -737,7 +827,7 @@ class APIFormField {
       fontWeight: FontWeight.bold,
       fontSize: 18,
       fontFamily: "arial",
-      color: hasErrors() ? COLOR_DANGER : COLOR_GRAY,
+      color: hasErrors() ? COLOR_DANGER : null,
       fontStyle: FontStyle.normal,
     );
   }
@@ -745,7 +835,7 @@ class APIFormField {
   TextStyle _helperStyle() {
     return TextStyle(
       fontStyle: FontStyle.italic,
-      color: hasErrors() ? COLOR_DANGER : COLOR_GRAY,
+      color: hasErrors() ? COLOR_DANGER : null,
     );
   }
 
@@ -1257,6 +1347,10 @@ class _APIFormWidgetState extends State<APIFormWidget> {
 
     for (var field in widget.fields) {
 
+      if (field.readOnly) {
+        continue;
+      }
+
       if (field.isSimple) {
         // Simple top-level field data
         data[field.name] = field.data["value"];
@@ -1323,10 +1417,10 @@ class _APIFormWidgetState extends State<APIFormWidget> {
           // Ensure the response is a valid JSON structure
           Map<String, dynamic> json = {};
 
-          if (response.data != null && response.data is Map) {
-            for (dynamic key in response.data.keys) {
-              json[key.toString()] = response.data[key];
-            }
+          var data = response.asMap();
+
+          for (String key in data.keys) {
+            json[key.toString()] = data[key];
           }
 
           successFunc(json);

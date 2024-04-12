@@ -1,5 +1,150 @@
-## InvenTree App Release Notes
+### 0.14.2 - February 2024
 ---
+
+- Updated error reporting
+- Support for updated server API endpoints
+- Updated translations
+
+### 0.14.1 - January 2024
+---
+
+- Squashing bugs
+
+### 0.14.0 - December 2023
+---
+
+- Adds support for Sales Orders
+- Adds option to pause and resume barcode scanning with camera
+- Adds option for "single shot" barcode scanning with camera
+- Fixes bug when removing entire quantity of a stock item
+- Add line items to purchase orders directly from the app
+- Add line items to purchase order using barcode scanner
+- Add line items to sales orders directly from the app
+- Add line items to sales order using barcode scanner
+- Allocate stock items against existing sales orders
+
+### 0.13.0 - October 2023
+---
+
+- Adds "wedge scanner" mode, allowing use with external barcode readers
+- Add ability to scan in received items using supplier barcodes
+- Store API token, rather than username:password
+- Ensure that user will lose access if token is revoked by server
+- Improve scroll-to-refresh behaviour across multiple widgets
+
+
+### 0.12.8 - September 2023
+---
+
+- Added extra options for transferring stock items
+- Fixes bug where API data was not fetched with correct locale
+
+### 0.12.7 - August 2023
+---
+
+- Bug fix for Supplier Part editing page
+- Bug fix for label printing (blank template names)
+- Updated translations
+
+### 0.12.6 - July 2023
+--- 
+
+- Enable label printing for stock locations
+- Enable label printing for parts
+- Updated translation support
+- Bug fixes
+
+### 0.12.5 - July 2023
+---
+
+- Adds extra filtering options for stock items
+- Updated translations
+
+### 0.12.4 - July 2023
+---
+
+- Pre-fill stock location when transferring stock amount
+- UX improvements for searching data
+- Updated translations
+
+### - 0.12.3 - June 2023
+---
+
+- Edit part parameters from within the app
+- Increase visibility of stock quantity in widgets
+- Improved filters for stock list
+- Bug fix for editing stock item purchase price
+
+### 0.12.2 - June 2023
+---
+
+- Adds options for configuring screen orientation
+- Improvements to barcode scanning
+- Translation updates
+- Bug fix for scrolling long lists
+
+### 0.12.1 - May 2023
+---
+
+- Fixes bug in purchase order form
+
+### 0.12.0 - April 2023
+---
+
+- Add support for Project Codes
+- Improve purchase order support
+- Fix action button colors
+- Improvements for stock item test result display
+- Added Norwegian translations
+- Fix serial number field when creating stock item
+
+### 0.11.5 - April 2023
+---
+
+- Fix background image transparency for dark mode
+- Fix link to Bill of Materials from Part screen
+- Improvements to supplier part detail screen
+- Add "notes" field to more models
+
+
+### 0.11.4 - April 2023
+---
+
+- Bug fix for stock history widget
+- Improved display of stock history widget
+- Theme improvements for dark mode
+
+### 0.11.3 - April 2023
+---
+
+- Fixes text color in dark mode
+
+### 0.11.2 - April 2023
+---
+
+- Adds "dark mode" display option
+- Add action to issue a purchase order
+- Add action to cancel a purchase order
+- Reimplement periodic checks for notifications
+
+
+### 0.11.1 - April 2023
+---
+
+- Fixes keyboard bug in search widget
+- Adds ability to create new purchase orders directly from the app
+- Adds support for the "contact" field to purchase orders
+- Improved rendering of status codes for stock items
+- Added rendering of status codes for purchase orders
+
+### 0.11.0 - April 2023
+---
+
+- Major UI updates - [see the documentation](https://docs.inventree.org/en/latest/app/app/)
+- Adds globally accessible action button for "search"
+- Adds globally accessible action button for "barcode scan"
+- Implement context actions using floating actions buttons
+- Support barcode scanning for purchase orders
 
 ### 0.10.2 - March 2023
 ---

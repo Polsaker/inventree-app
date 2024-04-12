@@ -2,17 +2,18 @@ import "dart:async";
 import "dart:io";
 
 import "package:font_awesome_flutter/font_awesome_flutter.dart";
-import "package:inventree/api.dart";
 import "package:flutter/material.dart";
-import "package:inventree/inventree/sentry.dart";
-import "package:inventree/widget/dialogs.dart";
+import "package:inventree/widget/snacks.dart";
 import "package:url_launcher/url_launcher.dart";
-
 import "package:path/path.dart" as path;
 
+import "package:inventree/api.dart";
 import "package:inventree/api_form.dart";
 import "package:inventree/fa_icon_mapping.dart";
 import "package:inventree/l10.dart";
+import "package:inventree/helpers.dart";
+import "package:inventree/inventree/sentry.dart";
+import "package:inventree/widget/dialogs.dart";
 
 
 // Paginated response object
@@ -63,6 +64,96 @@ class InvenTreeModel {
   // Note: If the WEB_URL is the same (except for /api/) as URL then just leave blank
   String get WEB_URL => "";
 
+  // Helper function to set a value in the JSON data
+  void setValue(String key, dynamic value) {
+    jsondata[key] = value;
+  }
+
+  // return a dynamic value from the JSON data
+  // optionally we can specifiy a "subKey" to get a value from a sub-dictionary
+  dynamic getValue(String key, {dynamic backup, String subKey = ""}) {
+    Map<String, dynamic> data = jsondata;
+
+    // If a subKey is specified, we need to dig deeper into the JSON data
+    if (subKey.isNotEmpty) {
+
+      if (!data.containsKey(subKey)) {
+        debug("JSON data does not contain subKey '$subKey' for key '$key'");
+        return backup;
+      }
+
+      dynamic sub_data = data[subKey];
+
+      if (sub_data is Map<String, dynamic>) {
+        data = (data[subKey] ?? {}) as Map<String, dynamic>;
+      }
+
+    }
+
+    if (data.containsKey(key)) {
+      return data[key];
+    } else {
+      debug("JSON data does not contain key '$key' (subKey '${subKey}')");
+      return backup;
+    }
+  }
+
+  // Helper function to get sub-map from JSON data
+  Map<String, dynamic> getMap(String key, {Map<String, dynamic> backup = const {}, String subKey = ""}) {
+    dynamic value = getValue(key, backup: backup, subKey: subKey);
+
+    if (value == null) {
+      return backup;
+    }
+
+    return value as Map<String, dynamic>;
+  }
+
+  // Helper function to get string value from JSON data
+  String getString(String key, {String backup = "", String subKey = ""}) {
+    dynamic value = getValue(key, backup: backup, subKey: subKey);
+
+    if (value == null) {
+      return backup;
+    }
+
+    return value.toString();
+  }
+
+  // Helper function to get integer value from JSON data
+  int getInt(String key, {int backup = -1, String subKey = ""}) {
+    dynamic value = getValue(key, backup: backup, subKey: subKey);
+
+    if (value == null) {
+      return backup;
+    }
+
+    return int.tryParse(value.toString()) ?? backup;
+  }
+
+  // Helper function to get double value from JSON data
+  double getDouble(String key, {double backup = 0.0, String subKey = ""}) {
+    dynamic value = getValue(key, backup: backup, subKey: subKey);
+
+    if (value == null) {
+      return backup;
+    }
+
+    return double.tryParse(value.toString()) ?? backup;
+  }
+
+  // Helper function to get boolean value from json data
+  bool getBool(String key, {bool backup = false, String subKey = ""}) {
+    dynamic value = getValue(key, backup: backup, subKey: subKey);
+
+    if (value == null) {
+      return backup;
+    }
+
+    return value.toString().toLowerCase() == "true";
+  }
+
+  // Return the InvenTree web server URL for this object
   String get webUrl {
 
     if (api.isConnected()) {
@@ -79,12 +170,68 @@ class InvenTreeModel {
     } else {
       return "";
     }
+  }
 
+  /* Return a list of roles which may be required for this model
+   * If multiple roles are required, *any* role which passes the check is sufficient
+   */
+  List<String> get rolesRequired {
+    // Default implementation should not be called
+    debug("rolesRequired() not implemented for model ${URL} - returning empty list");
+    return [];
+  }
+
+  // Test if the user can "edit" this model
+  bool get canEdit {
+    for (String role in rolesRequired) {
+      if (InvenTreeAPI().checkPermission(role, "change")) {
+        return true;
+      }
+    }
+
+    // Fallback
+    return false;
+  }
+
+  // Test if the user can "create" this model
+  bool get canCreate {
+    for (String role in rolesRequired) {
+      if (InvenTreeAPI().checkPermission(role, "add")) {
+        return true;
+      }
+    }
+
+    // Fallback
+    return false;
+  }
+
+  // Test if the user can "delete" this model
+  bool get canDelete {
+    for (String role in rolesRequired) {
+      if (InvenTreeAPI().checkPermission(role, "delete")) {
+        return true;
+      }
+    }
+
+    // Fallback
+    return false;
+  }
+
+  // Test if the user can "view" this model
+  bool get canView {
+    for (String role in rolesRequired) {
+      if (InvenTreeAPI().checkPermission(role, "view")) {
+        return true;
+      }
+    }
+
+    // Fallback
+    return false;
   }
 
   // Fields for editing / creating this model
   // Override per-model
-  Map<String, dynamic> formFields() {
+  Map<String, Map<String, dynamic>> formFields() {
 
     return {};
   }
@@ -135,16 +282,16 @@ class InvenTreeModel {
   // Accessor for the API
   InvenTreeAPI get api => InvenTreeAPI();
 
-  int get pk => (jsondata["pk"] ?? -1) as int;
-
+  int get pk => getInt("pk");
+  
   // Some common accessors
-  String get name => (jsondata["name"] ?? "") as String;
+  String get name => getString("name");
 
-  String get description => (jsondata["description"] ?? "") as String;
+  String get description => getString("description");
+  
+  String get notes => getString("notes");
 
-  String get notes => (jsondata["notes"] ?? "") as String;
-
-  int get parentId => (jsondata["parent"] ?? -1) as int;
+  int get parentId => getInt("parent");
 
   // Legacy API provided external link as "URL", while newer API uses "link"
   String get link => (jsondata["link"] ?? jsondata["URL"] ?? "") as String;
@@ -241,15 +388,10 @@ class InvenTreeModel {
     }
   }
 
-  String get keywords => (jsondata["keywords"] ?? "") as String;
-
+  String get keywords => getString("keywords");
+  
   // Create a new object from JSON data (not a constructor!)
-  InvenTreeModel createFromJson(Map<String, dynamic> json) {
-
-      var obj = InvenTreeModel.fromJson(json);
-
-      return obj;
-  }
+  InvenTreeModel createFromJson(Map<String, dynamic> json) => InvenTreeModel.fromJson(json);
 
   // Return the API detail endpoint for this Model object
   String get url => "${URL}/${pk}/".replaceAll("//", "/");
@@ -412,11 +554,25 @@ class InvenTreeModel {
         return false;
       }
     } else {
-      showServerError(
-        url,
-        L10().serverError,
-        L10().errorFetch,
-      );
+
+      switch (response.statusCode) {
+        case 404: // Object has been deleted
+          showSnackIcon(
+            L10().itemDeleted,
+            success: false,
+          );
+          break;
+        default:
+          String detail = L10().errorFetch;
+          detail += "\n${L10().statusCode}: ${response.statusCode}";
+
+          showServerError(
+              url,
+              L10().serverError,
+              detail
+          );
+          break;
+      }
 
       return false;
     }
@@ -473,15 +629,17 @@ class InvenTreeModel {
 
     if (!response.isValid() || response.data == null || response.data is! Map) {
 
-      // Report error
-      reportModelError(
-          "InvenTreeModel.getModel() returned invalid response",
-          response,
-          context: {
-            "filters": filters.toString(),
-            "pk": pk,
-          }
-      );
+      if (response.statusCode != -1) {
+        // Report error
+        reportModelError(
+            "InvenTreeModel.getModel() returned invalid response",
+            response,
+            context: {
+              "filters": filters.toString(),
+              "pk": pk,
+            }
+        );
+      }
 
       showServerError(
         url,
@@ -576,27 +734,44 @@ class InvenTreeModel {
     // Construct the response
     InvenTreePageResponse page = InvenTreePageResponse();
 
-    var data = response.asMap();
+    var dataMap = response.asMap();
 
-    if (data.containsKey("count") && data.containsKey("results")) {
-       page.count = (data["count"] ?? 0) as int;
+    // First attempt is to look for paginated data, returned as a map
+
+    if (dataMap.isNotEmpty && dataMap.containsKey("count") && dataMap.containsKey("results")) {
+      page.count = (dataMap["count"] ?? 0) as int;
 
        page.results = [];
 
-       for (var result in response.data["results"]) {
+       List<dynamic> results = dataMap["results"] as List<dynamic>;
+
+       for (dynamic result in results) {
          page.addResult(createFromJson(result as Map<String, dynamic>));
        }
 
        return page;
-
-    } else {
-      return null;
     }
+
+    // Second attempt is to look for a list of data (not paginated)
+    var dataList = response.asList();
+
+    if (dataList.isNotEmpty) {
+      page.count = dataList.length;
+      page.results = [];
+
+      for (var result in dataList) {
+        page.addResult(createFromJson(result as Map<String, dynamic>));
+    }
+
+      return page;
+    }
+
+    // Finally, no results available
+    return null;
   }
 
   // Return list of objects from the database, with optional filters
   Future<List<InvenTreeModel>> list({Map<String, String> filters = const {}}) async {
-
     var params = defaultListFilters();
 
     for (String key in filters.keys) {
@@ -675,9 +850,7 @@ class InvenTreePlugin extends InvenTreeModel {
   InvenTreePlugin.fromJson(Map<String, dynamic> json) : super.fromJson(json);
 
   @override
-  InvenTreeModel createFromJson(Map<String, dynamic> json) {
-    return InvenTreePlugin.fromJson(json);
-  }
+  InvenTreeModel createFromJson(Map<String, dynamic> json) => InvenTreePlugin.fromJson(json);
 
   @override
   String get URL {
@@ -694,10 +867,10 @@ class InvenTreePlugin extends InvenTreeModel {
     }
   }
 
-  String get key => (jsondata["key"] ?? "") as String;
-
-  bool get active => (jsondata["active"] ?? false) as bool;
-
+  String get key => getString("key");
+  
+  bool get active => getBool("active");
+  
   // Return the metadata struct for this plugin
   Map<String, dynamic> get _meta => (jsondata["meta"] ?? {}) as Map<String, dynamic>;
 
@@ -732,11 +905,11 @@ class InvenTreeGlobalSetting extends InvenTreeModel {
   @override
   String get URL => "settings/global/";
 
-  String get key => (jsondata["key"] ?? "") as String;
-
-  String get value => (jsondata["value"] ?? "") as String;
-
-  String get type => (jsondata["type"] ?? "") as String;
+  String get key => getString("key");
+  
+  String get value => getString("value");
+  
+  String get type => getString("type");
 
 }
 
@@ -765,8 +938,8 @@ class InvenTreeAttachment extends InvenTreeModel {
   // Override this reference field for any subclasses
   String get REFERENCE_FIELD => "";
 
-  String get attachment => (jsondata["attachment"] ?? "") as String;
-
+  String get attachment => getString("attachment");
+  
   // Return the filename of the attachment
   String get filename {
     return attachment.split("/").last;
@@ -803,8 +976,8 @@ class InvenTreeAttachment extends InvenTreeModel {
     return FontAwesomeIcons.fileLines;
   }
 
-  String get comment => (jsondata["comment"] ?? "") as String;
-
+  String get comment => getString("comment");
+  
   DateTime? get uploadDate {
     if (jsondata.containsKey("upload_date")) {
       return DateTime.tryParse((jsondata["upload_date"] ?? "") as String);

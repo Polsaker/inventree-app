@@ -6,25 +6,25 @@ import "package:font_awesome_flutter/font_awesome_flutter.dart";
 
 import "package:inventree/api.dart";
 import "package:inventree/app_colors.dart";
+import "package:inventree/inventree/part.dart";
+import "package:inventree/inventree/purchase_order.dart";
+import "package:inventree/inventree/sales_order.dart";
+import "package:inventree/inventree/stock.dart";
 import "package:inventree/preferences.dart";
-import "package:inventree/barcode.dart";
 import "package:inventree/l10.dart";
-import "package:inventree/settings/login.dart";
-import "package:inventree/settings/settings.dart";
+import "package:inventree/settings/select_server.dart";
 import "package:inventree/user_profile.dart";
 
-import "package:inventree/inventree/notification.dart";
-
-import "package:inventree/widget/category_display.dart";
+import "package:inventree/widget/part/category_display.dart";
 import "package:inventree/widget/drawer.dart";
-import "package:inventree/widget/location_display.dart";
-import "package:inventree/widget/notifications.dart";
-import "package:inventree/widget/part_list.dart";
-import "package:inventree/widget/purchase_order_list.dart";
-import "package:inventree/widget/search.dart";
+import "package:inventree/widget/stock/location_display.dart";
+import "package:inventree/widget/part/part_list.dart";
+import "package:inventree/widget/order/purchase_order_list.dart";
+import "package:inventree/widget/order/sales_order_list.dart";
+import "package:inventree/widget/refreshable_state.dart";
 import "package:inventree/widget/snacks.dart";
 import "package:inventree/widget/spinner.dart";
-import "package:inventree/widget/company_list.dart";
+import "package:inventree/widget/company/company_list.dart";
 
 
 class InvenTreeHomePage extends StatefulWidget {
@@ -35,7 +35,8 @@ class InvenTreeHomePage extends StatefulWidget {
   _InvenTreeHomePageState createState() => _InvenTreeHomePageState();
 }
 
-class _InvenTreeHomePageState extends State<InvenTreeHomePage> {
+
+class _InvenTreeHomePageState extends State<InvenTreeHomePage> with BaseWidgetProperties {
 
   _InvenTreeHomePageState() : super() {
     // Load display settings
@@ -43,16 +44,6 @@ class _InvenTreeHomePageState extends State<InvenTreeHomePage> {
 
     // Initially load the profile and attempt server connection
     _loadProfile();
-
-    _refreshNotifications();
-
-    // Refresh notifications every ~30 seconds
-    Timer.periodic(
-        Duration(
-          milliseconds: 30000,
-        ), (timer) {
-      _refreshNotifications();
-    });
 
     InvenTreeAPI().registerCallback(() {
 
@@ -64,37 +55,22 @@ class _InvenTreeHomePageState extends State<InvenTreeHomePage> {
     });
   }
 
-  // Index of bottom navigation bar
-  int _tabIndex = 0;
-
-  // Number of outstanding notifications
-  int _notificationCounter = 0;
+  final homeKey = GlobalKey<ScaffoldState>();
 
   bool homeShowPo = false;
+  bool homeShowSo = false;
   bool homeShowSubscribed = false;
   bool homeShowManufacturers = false;
   bool homeShowCustomers = false;
   bool homeShowSuppliers = false;
 
-  final GlobalKey<_InvenTreeHomePageState> _homeKey = GlobalKey<_InvenTreeHomePageState>();
-
   // Selected user profile
   UserProfile? _profile;
-
-  void _scan(BuildContext context) {
-    if (!InvenTreeAPI().checkConnection()) return;
-
-    scanQrCode(context);
-  }
 
   void _showParts(BuildContext context) {
     if (!InvenTreeAPI().checkConnection()) return;
 
     Navigator.push(context, MaterialPageRoute(builder: (context) => CategoryDisplayWidget(null)));
-  }
-
-  void _showSettings(BuildContext context) {
-    Navigator.push(context, MaterialPageRoute(builder: (context) => InvenTreeSettingsWidget()));
   }
 
   void _showStarredParts(BuildContext context) {
@@ -127,6 +103,17 @@ class _InvenTreeHomePageState extends State<InvenTreeHomePage> {
     );
   }
 
+  void _showSalesOrders(BuildContext context) {
+    if (!InvenTreeAPI().checkConnection()) return;
+
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (context) => SalesOrderListWidget(filters: {})
+        )
+    );
+  }
+
   void _showSuppliers(BuildContext context) {
     if (!InvenTreeAPI().checkConnection()) return;
 
@@ -140,16 +127,16 @@ class _InvenTreeHomePageState extends State<InvenTreeHomePage> {
     Navigator.push(context, MaterialPageRoute(builder: (context) => CompanyListWidget(L10().manufacturers, {"is_manufacturer": "true"})));
   }
 
+  */
   void _showCustomers(BuildContext context) {
     if (!InvenTreeAPI().checkConnection()) return;
 
     Navigator.push(context, MaterialPageRoute(builder: (context) => CompanyListWidget(L10().customers, {"is_customer": "true"})));
   }
-   */
 
   void _selectProfile() {
     Navigator.push(
-        context, MaterialPageRoute(builder: (context) => InvenTreeLoginSettingsWidget())
+        context, MaterialPageRoute(builder: (context) => InvenTreeSelectServerWidget())
     ).then((context) {
       // Once we return
       _loadProfile();
@@ -160,6 +147,7 @@ class _InvenTreeHomePageState extends State<InvenTreeHomePage> {
 
     homeShowSubscribed = await InvenTreeSettingsManager().getValue(INV_HOME_SHOW_SUBSCRIBED, true) as bool;
     homeShowPo = await InvenTreeSettingsManager().getValue(INV_HOME_SHOW_PO, true) as bool;
+    homeShowSo = await InvenTreeSettingsManager().getValue(INV_HOME_SHOW_SO, true) as bool;
     homeShowManufacturers = await InvenTreeSettingsManager().getValue(INV_HOME_SHOW_MANUFACTURERS, true) as bool;
     homeShowCustomers = await InvenTreeSettingsManager().getValue(INV_HOME_SHOW_CUSTOMERS, true) as bool;
     homeShowSuppliers = await InvenTreeSettingsManager().getValue(INV_HOME_SHOW_SUPPLIERS, true) as bool;
@@ -177,7 +165,7 @@ class _InvenTreeHomePageState extends State<InvenTreeHomePage> {
       if (!InvenTreeAPI().isConnected() && !InvenTreeAPI().isConnecting()) {
 
         // Attempt server connection
-        InvenTreeAPI().connectToServer().then((result) {
+        InvenTreeAPI().connectToServer(_profile!).then((result) {
           if (mounted) {
             setState(() {});
           }
@@ -187,28 +175,6 @@ class _InvenTreeHomePageState extends State<InvenTreeHomePage> {
 
     setState(() {});
   }
-
-  /*
-   * Refresh the number of active notifications for this user
-   */
-  Future<void> _refreshNotifications() async {
-
-    if (!InvenTreeAPI().isConnected()) {
-      return;
-    }
-
-    // Ignore if the widget is no longer active
-    if (!mounted) {
-      return;
-    }
-
-    final notifications = await InvenTreeNotification().list();
-
-    setState(() {
-      _notificationCounter = notifications.length;
-    });
-  }
-
 
   Widget _listTile(BuildContext context, String label, IconData icon, {Function()? callback, String role = "", String permission = "", Widget? trailing}) {
 
@@ -227,27 +193,24 @@ class _InvenTreeHomePageState extends State<InvenTreeHomePage> {
           horizontal: 12
         ),
         child: ListTile(
-          leading: FaIcon(icon, color: connected && allowed ? COLOR_CLICK : Colors.grey),
+          leading: FaIcon(icon, color: connected && allowed ? COLOR_ACTION : Colors.grey),
           title: Text(label),
           trailing: trailing,
         ),
       ),
       onTap: () {
-
         if (!allowed) {
           showSnackIcon(
             L10().permissionRequired,
             icon: FontAwesomeIcons.circleExclamation,
             success: false,
           );
-
           return;
         }
 
         if (callback != null) {
           callback();
         }
-
       },
     );
   }
@@ -257,30 +220,24 @@ class _InvenTreeHomePageState extends State<InvenTreeHomePage> {
    */
   List<Widget> getListTiles(BuildContext context) {
 
-    List<Widget> tiles = [];
-
-    // Barcode scanner
-    tiles.add(_listTile(
-      context,
-      L10().scanBarcode,
-      Icons.qr_code_scanner,
-      callback: () {
-        _scan(context);
-      }
-    ));
+    List<Widget> tiles = [
+      Divider(height: 5)
+    ];
 
     // Parts
-    tiles.add(_listTile(
-      context,
-      L10().parts,
-      FontAwesomeIcons.shapes,
-      callback: () {
-        _showParts(context);
-      },
-    ));
+    if (InvenTreePart().canView) {
+      tiles.add(_listTile(
+        context,
+        L10().parts,
+        FontAwesomeIcons.shapes,
+        callback: () {
+          _showParts(context);
+        },
+      ));
+    }
 
     // Starred parts
-    if (homeShowSubscribed) {
+    if (homeShowSubscribed && InvenTreePart().canView) {
       tiles.add(_listTile(
         context,
         L10().partsStarred,
@@ -292,17 +249,19 @@ class _InvenTreeHomePageState extends State<InvenTreeHomePage> {
     }
 
     // Stock button
-    tiles.add(_listTile(
-        context,
-        L10().stock,
-        FontAwesomeIcons.boxesStacked,
-        callback: () {
-          _showStock(context);
-        }
-    ));
+    if (InvenTreeStockItem().canView) {
+      tiles.add(_listTile(
+          context,
+          L10().stock,
+          FontAwesomeIcons.boxesStacked,
+          callback: () {
+            _showStock(context);
+          }
+      ));
+    }
 
     // Purchase orders
-    if (homeShowPo) {
+    if (homeShowPo && InvenTreePurchaseOrder().canView) {
       tiles.add(_listTile(
           context,
           L10().purchaseOrders,
@@ -313,8 +272,19 @@ class _InvenTreeHomePageState extends State<InvenTreeHomePage> {
       ));
     }
 
+    if (homeShowSo && InvenTreeSalesOrder().canView) {
+      tiles.add(_listTile(
+        context,
+        L10().salesOrders,
+        FontAwesomeIcons.truck,
+        callback: () {
+          _showSalesOrders(context);
+        }
+      ));
+    }
+
     // Suppliers
-    if (homeShowSuppliers) {
+    if (homeShowSuppliers && InvenTreePurchaseOrder().canView) {
       tiles.add(_listTile(
           context,
           L10().suppliers,
@@ -340,7 +310,7 @@ class _InvenTreeHomePageState extends State<InvenTreeHomePage> {
           }
       ));
     }
-
+    */
     // Customers
     if (homeShowCustomers) {
       tiles.add(_listTile(
@@ -352,17 +322,6 @@ class _InvenTreeHomePageState extends State<InvenTreeHomePage> {
           }
       ));
     }
-     */
-
-    // Settings
-    tiles.add(_listTile(
-        context,
-        L10().settings,
-        FontAwesomeIcons.gears,
-        callback: () {
-          _showSettings(context);
-        }
-    ));
 
     return tiles;
   }
@@ -378,7 +337,7 @@ class _InvenTreeHomePageState extends State<InvenTreeHomePage> {
     bool connecting = !InvenTreeAPI().isConnected() && InvenTreeAPI().isConnecting();
 
     Widget leading = FaIcon(FontAwesomeIcons.circleExclamation, color: COLOR_DANGER);
-    Widget trailing = FaIcon(FontAwesomeIcons.server, color: COLOR_CLICK);
+    Widget trailing = FaIcon(FontAwesomeIcons.server, color: COLOR_ACTION);
     String title = L10().serverNotConnected;
     String subtitle = L10().profileSelectOrCreate;
 
@@ -393,9 +352,10 @@ class _InvenTreeHomePageState extends State<InvenTreeHomePage> {
     return Center(
       child: Column(
         children: [
+          Spacer(),
           Image.asset(
-            "assets/image/icon.png",
-            color: Colors.white.withOpacity(0.2),
+            "assets/image/logo_transparent.png",
+            color: Colors.white.withOpacity(0.05),
             colorBlendMode: BlendMode.modulate,
             scale: 0.5,
           ),
@@ -413,81 +373,19 @@ class _InvenTreeHomePageState extends State<InvenTreeHomePage> {
   }
 
   /*
-   * Return the main body widget for display.
-   * This depends on the current value of _tabIndex
+   * Return the main body widget for display
    */
+  @override
   Widget getBody(BuildContext context) {
 
     if (!InvenTreeAPI().isConnected()) {
       return _connectionStatusWidget(context);
     }
 
-    switch (_tabIndex) {
-      case 1: // Search widget
-        return SearchWidget(false);
-      case 2: // Notification widget
-        return NotificationWidget();
-      case 0: // Home widget
-      default:
-        return ListView(
-          scrollDirection: Axis.vertical,
-          children: getListTiles(context),
-      );
-    }
-  }
-
-  /*
-   * Construct the bottom navigation bar
-   */
-  List<BottomNavigationBarItem> getNavBarItems(BuildContext context) {
-
-    List<BottomNavigationBarItem> items = <BottomNavigationBarItem>[
-      BottomNavigationBarItem(
-        icon: FaIcon(FontAwesomeIcons.house),
-        label: L10().home,
-      ),
-      BottomNavigationBarItem(
-        icon: FaIcon(FontAwesomeIcons.magnifyingGlass),
-        label: L10().search,
-      ),
-    ];
-
-    if (InvenTreeAPI().supportsNotifications) {
-      items.add(
-          BottomNavigationBarItem(
-            icon: _notificationCounter == 0 ? FaIcon(FontAwesomeIcons.bell) : Stack(
-              children: <Widget>[
-                FaIcon(FontAwesomeIcons.bell),
-                Positioned(
-                  right: 0,
-                  child: Container(
-                    padding: EdgeInsets.all(2),
-                    decoration: BoxDecoration(
-                      color: Colors.red,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    constraints: BoxConstraints(
-                      minWidth: 12,
-                      minHeight: 12,
-                    ),
-                    child: Text(
-                      "${_notificationCounter}",
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 9,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ),
-                )
-              ],
-            ),
-            label: L10().notifications,
-          )
-      );
-    }
-
-    return items;
+    return ListView(
+        scrollDirection: Axis.vertical,
+        children: getListTiles(context),
+    );
   }
 
   @override
@@ -497,7 +395,7 @@ class _InvenTreeHomePageState extends State<InvenTreeHomePage> {
     var connecting = !connected && InvenTreeAPI().isConnecting();
 
     return Scaffold(
-      key: _homeKey,
+      key: homeKey,
       appBar: AppBar(
         title: Text(L10().appTitle),
         actions: [
@@ -512,17 +410,7 @@ class _InvenTreeHomePageState extends State<InvenTreeHomePage> {
       ),
       drawer: InvenTreeDrawer(context),
       body: getBody(context),
-      bottomNavigationBar: connected ? BottomNavigationBar(
-        currentIndex: _tabIndex,
-        onTap: (int index) {
-          setState(() {
-            _tabIndex = index;
-          });
-
-          _refreshNotifications();
-        },
-        items: getNavBarItems(context),
-      ) : null,
+      bottomNavigationBar: InvenTreeAPI().isConnected() ? buildBottomAppBar(context, homeKey) : null,
     );
   }
 }

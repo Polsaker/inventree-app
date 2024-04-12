@@ -23,11 +23,10 @@ class _NotificationState extends RefreshableState<NotificationWidget> {
 
   List<InvenTreeNotification> notifications = [];
 
+  bool isDismissing = false;
+
   @override
-  AppBar? buildAppBar(BuildContext context, GlobalKey<ScaffoldState> key) {
-    // No app bar for the notification widget
-    return null;
-  }
+  String getAppBarTitle() => L10().notifications;
 
   @override
   Future<void> request (BuildContext context) async {
@@ -48,16 +47,30 @@ class _NotificationState extends RefreshableState<NotificationWidget> {
    */
   Future<void> dismissNotification(BuildContext context, InvenTreeNotification notification) async {
 
+    if (mounted) {
+      setState(() {
+        isDismissing = true;
+      });
+    } else {
+      return;
+    }
+
     await notification.dismiss();
 
-    refresh(context);
+    if (mounted) {
+      refresh(context);
 
+      setState(() {
+        isDismissing = false;
+      });
+    }
   }
 
   /*
    * Display an individual notification message
    */
-  List<Widget> renderNotifications(BuildContext context) {
+  @override
+  List<Widget> getTiles(BuildContext context) {
 
     List<Widget> tiles = [];
 
@@ -79,7 +92,7 @@ class _NotificationState extends RefreshableState<NotificationWidget> {
           subtitle: Text(notification.message),
           trailing: IconButton(
             icon: FaIcon(FontAwesomeIcons.bookmark),
-            onPressed: () async {
+            onPressed: isDismissing ? null : () async {
               dismissNotification(context, notification);
             },
           ),
@@ -90,17 +103,4 @@ class _NotificationState extends RefreshableState<NotificationWidget> {
     return tiles;
 
   }
-
-  @override
-  Widget getBody(BuildContext context) {
-    return Center(
-      child: ListView(
-        children: ListTile.divideTiles(
-          context: context,
-          tiles: renderNotifications(context),
-        ).toList()
-      )
-    );
-  }
-
 }

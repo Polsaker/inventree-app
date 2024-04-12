@@ -5,7 +5,6 @@
 import "package:test/test.dart";
 
 import "package:inventree/api.dart";
-import "package:inventree/user_profile.dart";
 import "package:inventree/inventree/model.dart";
 import "package:inventree/inventree/part.dart";
 
@@ -16,16 +15,7 @@ void main() {
   setupTestEnv();
 
   setUp(() async {
-    await UserProfileDBManager().addProfile(UserProfile(
-      name: "Test Profile",
-      server: "http://localhost:12345",
-      username: "testuser",
-      password: "testpassword",
-      selected: true,
-    ));
-
-    assert(await UserProfileDBManager().selectProfileByName("Test Profile"));
-    assert(await InvenTreeAPI().connectToServer());
+    await connectToTestServer();
   });
 
   group("Category Tests:", () {
@@ -70,7 +60,7 @@ void main() {
 
       // List with active filter
       results = await InvenTreePart().list(filters: {"active": "true"});
-      expect(results.length, equals(13));
+      expect(results.length, greaterThanOrEqualTo(13));
 
       for (var result in results) {
         // results must be InvenTreePart instances

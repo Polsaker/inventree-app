@@ -43,33 +43,35 @@ class _AttachmentWidgetState extends RefreshableState<AttachmentWidget> {
   List<InvenTreeAttachment> attachments = [];
 
   @override
-  String getAppBarTitle(BuildContext context) => L10().attachments;
+  String getAppBarTitle() => L10().attachments;
 
   @override
-  List<Widget> getAppBarActions(BuildContext context) {
+  List<Widget> appBarActions(BuildContext context) {
+    if (!widget.hasUploadPermission) return [];
 
-    List<Widget> actions = [];
-
-    if (widget.hasUploadPermission) {
-      // File upload
-      actions.add(
-          IconButton(
-            icon: FaIcon(FontAwesomeIcons.circlePlus),
-            onPressed: () async {
-              FilePickerDialog.pickFile(
-                  onPicked: (File file) async {
-                    await upload(context, file);
-                  }
-              );
-            },
-          )
-      );
-    }
-
-    return actions;
+    return [
+      IconButton(
+        icon: FaIcon(FontAwesomeIcons.camera),
+        onPressed: () async {
+          FilePickerDialog.pickImageFromCamera().then((File? file) {
+            upload(context, file);
+          });
+        }
+      ),
+      IconButton(
+        icon: FaIcon(FontAwesomeIcons.fileArrowUp),
+        onPressed: () async {
+          FilePickerDialog.pickFileFromDevice().then((File? file) {
+            upload(context, file);
+          });
+        }
+      )
+    ];
   }
 
-  Future<void> upload(BuildContext context, File file) async {
+  Future<void> upload(BuildContext context, File? file) async {
+
+    if (file == null) return;
 
     showLoadingOverlay(context);
     final bool result = await widget.attachment.uploadAttachment(file, widget.referenceId);
@@ -145,19 +147,7 @@ class _AttachmentWidgetState extends RefreshableState<AttachmentWidget> {
   }
 
   @override
-  Widget getBody(BuildContext context) {
-    return Center(
-        child: ListView(
-          children: ListTile.divideTiles(
-              context: context,
-              tiles: attachmentTiles(context)
-          ).toList(),
-        )
-    );
-  }
-
-
-  List<Widget> attachmentTiles(BuildContext context) {
+  List<Widget> getTiles(BuildContext context) {
 
     List<Widget> tiles = [];
 
@@ -168,7 +158,7 @@ class _AttachmentWidgetState extends RefreshableState<AttachmentWidget> {
         tiles.add(ListTile(
           title: Text(attachment.filename),
           subtitle: Text(attachment.comment),
-          leading: FaIcon(attachment.icon, color: COLOR_CLICK),
+          leading: FaIcon(attachment.icon, color: COLOR_ACTION),
           onTap: () async {
             showLoadingOverlay(context);
             await attachment.downloadAttachment();
@@ -184,7 +174,7 @@ class _AttachmentWidgetState extends RefreshableState<AttachmentWidget> {
         tiles.add(ListTile(
           title: Text(attachment.link),
           subtitle: Text(attachment.comment),
-          leading: FaIcon(FontAwesomeIcons.link, color: COLOR_CLICK),
+          leading: FaIcon(FontAwesomeIcons.link, color: COLOR_ACTION),
           onTap: () async {
             var uri = Uri.tryParse(attachment.link.trimLeft());
             if (uri != null && await canLaunchUrl(uri)) {

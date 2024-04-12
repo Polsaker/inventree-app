@@ -19,11 +19,13 @@ import "package:inventree/widget/refreshable_state.dart";
  */
 abstract class PaginatedSearchWidget extends StatefulWidget {
 
-  const PaginatedSearchWidget({this.filters = const {}, this.showSearch = false});
+  const PaginatedSearchWidget({this.filters = const {}, this.title = ""});
+
+  final String title;
+
+  String get searchTitle => title;
 
   final Map<String, String> filters;
-
-  final bool showSearch;
 }
 
 
@@ -34,48 +36,45 @@ abstract class PaginatedSearchState<T extends PaginatedSearchWidget> extends Sta
 
   static const _pageSize = 25;
 
+  bool showSearchWidget = false;
+
   // Prefix for storing and loading pagination options
   // Override in implementing class
   String get prefix => "prefix_";
 
-  // Return a map of boolean filtering options available for this list
   // Should be overridden by an implementing subclass
   Map<String, Map<String, dynamic>> get filterOptions => {};
 
   // Return the boolean value of a particular boolean filter
-  Future<bool?> getBooleanFilterValue(String key) async {
-    key = "${prefix}bool_${key}";
+  Future<dynamic> getFilterValue(String key) async {
+    key = "${prefix}filter_${key}";
 
     Map<String, dynamic> opts = filterOptions[key] ?? {};
+    dynamic backup = opts["default"];
+    final result = await InvenTreeSettingsManager().getValue(key, backup);
 
-    bool? backup;
-    dynamic v = opts["default"];
-
-    if (v is bool) {
-      backup = v;
-    }
-
-    final result = await InvenTreeSettingsManager().getTriState(key, backup);
     return result;
   }
 
   // Set the boolean value of a particular boolean filter
-  Future<void> setBooleanFilterValue(String key, bool? value) async {
-    key = "${prefix}bool_${key}";
+  Future<void> setFilterValue(String key, dynamic value) async {
+    key = "${prefix}filter_${key}";
     await InvenTreeSettingsManager().setValue(key, value);
   }
 
   // Construct the boolean filter options for this list
-  Future<Map<String, String>> constructBooleanFilters() async {
+  Future<Map<String, String>> constructFilters() async {
 
     Map<String, String> f = {};
 
     for (String k in filterOptions.keys) {
-      bool? value = await getBooleanFilterValue(k);
+      dynamic value = await getFilterValue(k);
 
-      if (value is bool) {
-        f[k] = value ? "true" : "false";
+      // Skip null values
+      if (value == null) {
+        continue;
       }
+      f[k] = value.toString();
     }
 
     return f;
@@ -121,7 +120,7 @@ abstract class PaginatedSearchState<T extends PaginatedSearchWidget> extends Sta
   }
 
   // Update the (configurable) filters for this paginated list
-  Future<void> _saveOrderingOptions(BuildContext context) async {
+  Future<void> _setOrderingOptions(BuildContext context) async {
     // Retrieve stored setting
     dynamic _field = await orderingField();
     dynamic _order = await orderingOrder();
@@ -164,7 +163,7 @@ abstract class PaginatedSearchState<T extends PaginatedSearchWidget> extends Sta
       }
     };
 
-    // Add in boolean filter options
+    // Add in selected filter options
     for (String key in filterOptions.keys) {
       Map<String, dynamic> opts = filterOptions[key] ?? {};
 
@@ -172,17 +171,18 @@ abstract class PaginatedSearchState<T extends PaginatedSearchWidget> extends Sta
       String label = (opts["label"] ?? key) as String;
       String? help_text = opts["help_text"] as String?;
 
+      List<dynamic> choices = (opts["choices"] ?? []) as List<dynamic>;
+
       bool tristate = (opts["tristate"] ?? true) as bool;
 
-      bool? v = await getBooleanFilterValue(key);
+      dynamic v = await getFilterValue(key);
 
       // Prevent null value if not tristate
       if (!tristate && v == null) {
         v = false;
       }
 
-      // Add in the particular field
-      fields[key] = {
+      Map<String, dynamic> filter = {
         "type": "boolean",
         "display_name": label,
         "label": label,
@@ -190,6 +190,16 @@ abstract class PaginatedSearchState<T extends PaginatedSearchWidget> extends Sta
         "value": v,
         "tristate": (opts["tristate"] ?? true) as bool,
       };
+
+      if (choices.isNotEmpty) {
+        // Configure as a choice input
+        filter["type"] = "choice";
+        filter["choices"] = choices;
+
+        filter.remove("tristate");
+      }
+
+      fields[key] = filter;
     }
 
     // Launch an interactive form for the user to select options
@@ -211,16 +221,7 @@ abstract class PaginatedSearchState<T extends PaginatedSearchWidget> extends Sta
 
         // Save boolean fields
         for (String key in filterOptions.keys) {
-
-          bool? v;
-
-          dynamic value = data[key];
-
-          if (value is bool) {
-            v = value;
-          }
-
-          await setBooleanFilterValue(key, v);
+          await setFilterValue(key, data[key]);
         }
 
         // Refresh data from the server
@@ -284,7 +285,17 @@ abstract class PaginatedSearchState<T extends PaginatedSearchWidget> extends Sta
 
       // Include user search term
       if (searchTerm.isNotEmpty) {
-        params["search"] = "${searchTerm}";
+
+        String _search = searchTerm;
+
+        // Include original search in search test
+        String original = params["original_search"] ?? "";
+
+        if (original.isNotEmpty) {
+          _search = "${original} ${_search}";
+        }
+
+        params["search"] = "${_search}";
       }
 
       // Use custom query ordering if available
@@ -293,7 +304,7 @@ abstract class PaginatedSearchState<T extends PaginatedSearchWidget> extends Sta
         params["ordering"] = o;
       }
 
-      Map<String, String> f = await constructBooleanFilters();
+      Map<String, String> f = await constructFilters();
 
       if (f.isNotEmpty) {
         params.addAll(f);
@@ -348,6 +359,10 @@ abstract class PaginatedSearchState<T extends PaginatedSearchWidget> extends Sta
   void updateSearchTerm() {
     searchTerm = searchController.text;
     _pagingController.refresh();
+
+    if (mounted) {
+      setState(() {});
+    }
   }
 
   // Function to construct a single paginated item
@@ -368,39 +383,101 @@ abstract class PaginatedSearchState<T extends PaginatedSearchWidget> extends Sta
   @override
   Widget build (BuildContext context) {
 
-    List<Widget> children = [];
+    List<Widget> children = [
+      buildTitleWidget(context),
+      Divider(),
+    ];
 
-    if (widget.showSearch) {
+    if (showSearchWidget) {
       children.add(buildSearchInput(context));
     }
 
     children.add(
       Expanded(
-        child: CustomScrollView(
-            shrinkWrap: true,
-            physics: ClampingScrollPhysics(),
-            scrollDirection: Axis.vertical,
-            slivers: <Widget>[
-              PagedSliverList.separated(
-                pagingController: _pagingController,
-                builderDelegate: PagedChildBuilderDelegate<InvenTreeModel>(
-                    itemBuilder: (ctx, item, index) {
-                      return buildItem(ctx, item);
-                    },
-                    noItemsFoundIndicatorBuilder: (context) {
-                      return NoResultsWidget(noResultsText);
-                    }
-                ),
-                separatorBuilder: (context, item) => const Divider(height: 1),
-              )
-            ]
+          child: CustomScrollView(
+              shrinkWrap: true,
+              physics: AlwaysScrollableScrollPhysics(),
+              scrollDirection: Axis.vertical,
+              slivers: <Widget>[
+                PagedSliverList.separated(
+                  pagingController: _pagingController,
+                  builderDelegate: PagedChildBuilderDelegate<InvenTreeModel>(
+                      itemBuilder: (ctx, item, index) {
+                        return buildItem(ctx, item);
+                      },
+                      noItemsFoundIndicatorBuilder: (context) {
+                        return NoResultsWidget(noResultsText);
+                      }
+                  ),
+                  separatorBuilder: (context, item) => const Divider(height: 1),
+                )
+              ]
+          )
         )
-      )
     );
 
-    return Column(
+    return RefreshIndicator(
+      child: Column(
         mainAxisAlignment: MainAxisAlignment.start,
         children: children,
+      ),
+      onRefresh: () async {
+        _pagingController.refresh();
+      },
+    );
+  }
+
+  /*
+   * Build the title widget for this list
+   */
+  Widget buildTitleWidget(BuildContext context) {
+
+    const double icon_size = 32;
+
+    List<Widget> _icons = [];
+
+    if (filterOptions.isNotEmpty || orderingOptions.isNotEmpty) {
+      _icons.add(IconButton(
+        onPressed: () async {
+          _setOrderingOptions(context);
+        },
+        icon: Icon(Icons.filter_alt, size: icon_size)
+      ));
+    }
+
+    _icons.add(IconButton(
+        onPressed: () {
+          setState(() {
+            showSearchWidget = !showSearchWidget;
+          });
+        },
+        icon: Icon(showSearchWidget ? Icons.zoom_out : Icons.search, size: icon_size)
+    ));
+
+    _icons.add(IconButton(
+      onPressed: () async {
+        updateSearchTerm();
+      },
+      icon: Icon(Icons.refresh, size: icon_size),
+    ));
+
+    return ListTile(
+      title: Text(
+        widget.searchTitle,
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      subtitle: Text(
+        "${L10().results}: ${resultCount}",
+        style: TextStyle(
+          fontStyle: FontStyle.italic
+        ),
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: _icons,
+      ),
     );
   }
 
@@ -409,19 +486,15 @@ abstract class PaginatedSearchState<T extends PaginatedSearchWidget> extends Sta
    */
   Widget buildSearchInput(BuildContext context) {
     return ListTile(
-      leading: orderingOptions.isEmpty ? null : GestureDetector(
-        child: FaIcon(FontAwesomeIcons.sort, color: COLOR_CLICK),
-        onTap: () async {
-          _saveOrderingOptions(context);
-        },
-      ),
       trailing: GestureDetector(
         child: FaIcon(
           searchController.text.isEmpty ? FontAwesomeIcons.magnifyingGlass : FontAwesomeIcons.deleteLeft,
-          color: searchController.text.isNotEmpty ? COLOR_DANGER : COLOR_CLICK,
+          color: searchController.text.isNotEmpty ? COLOR_DANGER : COLOR_ACTION,
         ),
         onTap: () {
-          searchController.clear();
+          if (searchController.text.isNotEmpty) {
+            searchController.clear();
+          }
           updateSearchTerm();
         },
       ),
@@ -432,7 +505,6 @@ abstract class PaginatedSearchState<T extends PaginatedSearchWidget> extends Sta
         },
         decoration: InputDecoration(
           hintText: L10().search,
-          helperText: resultsString(),
         ),
       )
     );

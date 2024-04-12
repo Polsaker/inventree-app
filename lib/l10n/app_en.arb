@@ -47,6 +47,12 @@
   "appDetails": "App Details",
   "@appDetails": {},
 
+  "allocated": "Allocated",
+  "@allocated": {},
+
+  "allocateStock": "Allocate Stock",
+  "@allocateStock": {},
+
   "appReleaseNotes": "Display app release notes",
   "@appReleaseNotes": {},
 
@@ -76,8 +82,17 @@
   "attention": "Attention",
   "@attention": {},
 
+   "available": "Available",
+   "@available": {},
+
   "availableStock": "Available Stock",
   "@availableStock": {},
+
+  "barcodes": "Barcodes",
+  "@barcodes": {},
+
+  "barcodeSettings": "Barcode Settings",
+  "@barcodeSettings": {},
 
   "barcodeAssign": "Assign Barcode",
   "@barcodeAssign": {},
@@ -103,8 +118,32 @@
   "barcodeNotAssigned": "Barcode not assigned",
   "@barcodeNotAssigned": {},
 
+  "barcodeScanPart": "Scan part barcode",
+  "@barcodeScanPart": {},
+
+  "barcodeReceivePart": "Scan barcode to receive part",
+  "@barcodeReceivePart": {},
+
+  "barcodeScanPaused": "Barcode scanning paused",
+  "@barodeScanPaused": {},
+
+  "barcodeScanPause": "Tap or hold to pause scanning",
+  "@barcodeScanPause": {},
+
   "barcodeScanAssign": "Scan to assign barcode",
   "@barcodeScanAssign": {},
+
+  "barcodeScanController": "Scanner Input",
+  "@barcodeScanController": {},
+
+  "barcodeScanControllerDetail": "Select barcode scanner input source",
+  "@barcodeScanControllerDetail": {},
+
+  "barcodeScanDelay": "Barcode Scan Delay",
+  "@barcodeScanDelay": {},
+
+  "barcodeScanDelayDetail": "Delay between barcode scans",
+  "@barcodeScanDelayDetail": {},
 
   "barcodeScanGeneral":  "Scan an InvenTree barcode",
   "@barcodeScanGeneral": {},
@@ -114,6 +153,12 @@
 
   "barcodeScanLocation": "Scan stock location",
   "@barcodeScanLocation": {},
+
+  "barcodeScanSingle": "Single Scan Mode",
+  "@barcodeScanSingle": {},
+
+  "barcodeScanSingleDetail": "Pause barcode scanner after each scan",
+  "@barcodeScanSingleDetail": {},
 
   "barcodeScanIntoLocationSuccess": "Scanned into location",
   "@barcodeScanIntoLocationSuccess": {},
@@ -151,10 +196,19 @@
   "building": "Building",
   "@building": {},
 
+  "cameraInternal": "Internal Camera",
+  "@cameraInternal": {},
+
+  "cameraInternalDetail": "Use internal camera to read barcodes",
+  "@cameraInternalDetail": {},
+
   "cancel": "Cancel",
   "@cancel": {
     "description": "Cancel"
   },
+
+  "cancelOrder": "Cancel Order",
+  "@cancelOrder": {},
 
   "category": "Category",
   "@category": {},
@@ -202,11 +256,23 @@
   "credits": "Credits",
   "@credits": {},
 
+  "customer": "Customer",
+  "@customer": {},
+
   "customers": "Customers",
   "@customers": {},
 
+  "customerReference": "Customer Reference",
+  "@customerReference": {},
+
   "damaged": "Damaged",
   "@damaged": {},
+
+  "darkMode": "Dark Mode",
+  "@darkMode": {},
+
+  "darkModeEnable": "Enable dark mode",
+  "@darkModeEnable": {},
 
   "delete": "Delete",
   "@delete": {},
@@ -257,6 +323,9 @@
   "editNotes": "Edit Notes",
   "@editNotes": {},
 
+  "editParameter": "Edit Parameter",
+  "@editParameter": {},
+
   "editPart": "Edit Part",
   "@editPart": {
     "description": "edit part"
@@ -264,6 +333,9 @@
 
   "editItem": "Edit Stock Item",
   "@editItem": {},
+
+  "editLineItem": "Edit Line Item",
+  "@editLineItem": {},
 
   "enterPassword": "Enter password",
   "@enterPassword": {},
@@ -287,6 +359,12 @@
 
   "errorFetch":  "Error fetching data from server",
   "@errorFetch": {},
+
+  "errorUserRoles": "Error requesting user roles from server",
+  "@errorUserRoles": {},
+
+  "errorPluginInfo": "Error requesting plugin data from server",
+  "@errorPluginInfo": {},
 
   "errorReporting": "Error Reporting",
   "@errorReporting": {},
@@ -323,6 +401,12 @@
 
   "filterComponentDetail": "Show component parts",
   "@filterComponentDetail": {},
+
+  "filterExternal": "External",
+  "@filterExternal": {},
+
+  "filterExternalDetail": "Show stock in external locations",
+  "@filterExternalDetail": {},
 
   "filterInStock": "In Stock",
   "@filterInStock": {},
@@ -383,14 +467,20 @@
   "homeShowPo":  "Show Purchase Orders",
   "@homeShowPo": {},
 
+  "homeShowPoDescription": "Show purchase order button on home screen",
+  "@homeShowPoDescription": {},
+
+  "homeShowSo": "Show Sales Orders",
+  "@homeShowSo": {},
+
+  "homeShowSoDescription": "Show sales order button on home screen",
+  "@homeShowSoDescription": {},
+
   "homeShowSubscribed": "Subscribed Parts",
   "@homeShowSubscribed": {},
 
   "homeShowSubscribedDescription": "Show subscribed parts on home screen",
   "@homeShowSubscsribedDescription": {},
-
-  "homeShowPoDescription": "Show purchase order button on home screen",
-  "@homeShowPoDescription": {},
 
   "homeShowSuppliers": "Show Suppliers",
   "@homeShowSuppliers": {},
@@ -449,6 +539,9 @@
   "inProductionDetail": "This stock item is in production",
   "@inProductionDetail": {},
 
+  "internalPart": "Internal Part",
+  "@internalPart": {},
+
   "invalidHost": "Invalid hostname",
   "@invalidHost": {},
 
@@ -473,14 +566,29 @@
   "invalidUsernamePassword": "Invalid username / password combination",
   "@invalidUsernamePassword": {},
 
+  "issue": "Issue",
+  "@issue": {},
+
   "issueDate": "Issue Date",
   "@issueDate": {},
+
+  "issueOrder": "Issue Order",
+  "@issueOrder": {},
 
   "itemInLocation": "Item already in location",
   "@itemInLocation": {},
 
+  "itemDeleted": "Item has been removed",
+  "@itemDeleted": {},
+
   "keywords": "Keywords",
   "@keywords": {},
+
+  "labelPrinting": "Label Printing",
+  "@labelPrinting": {},
+
+  "labelPrintingDetail": "Enable label printing",
+  "@labelPrintingDetail": {},
 
   "labelTemplate": "Label Template",
   "@labelTemplate": {},
@@ -504,11 +612,17 @@
   "level": "Level",
   "@level": {},
 
+  "lineItemAdd": "Add Line Item",
+  "@lineItemAdd": {},
+
   "lineItem": "Line Item",
   "@lineItem": {},
 
   "lineItems": "Line Items",
   "@lineItems": {},
+
+  "lineItemUpdated": "Line item updated",
+  "@lineItemUpdated": {},
 
   "locateItem": "Locate stock item",
   "@locateItem": {},
@@ -528,11 +642,26 @@
   "locationUpdated": "Stock location updated",
   "@locationUpdated": {},
 
+  "login": "Login",
+  "@login": {},
+
+  "loginEnter": "Enter login details",
+  "@loginEnter": {},
+
+  "loginEnterDetails": "Username and password are not stored locally",
+  "@loginEnterDetails": {},
+
   "link": "Link",
   "@link": {},
 
   "lost": "Lost",
   "@lost": {},
+
+  "manufacturerPartNumber": "Manufacturer Part Number",
+  "@manufacturerPartNumber": {},
+
+  "manufacturer": "Manufacturer",
+  "@manufacturer": {},
 
   "manufacturers": "Manufacturers",
   "@manufacturers": {},
@@ -579,6 +708,33 @@
   "onOrderDetails": "Items currently on order",
   "@onOrderDetails": {},
 
+  "orientation": "Screen Orientation",
+  "@orientation": {},
+
+  "orientationDetail": "Screen orientation (requires restart)",
+  "@orientationDetail": {},
+
+  "orientationLandscape": "Landscape",
+  "@orientationLandscape": {},
+  
+  "orientationPortrait": "Portrait",
+  "@orientationPortrait": {},
+
+  "orientationSystem": "System",
+  "@orientationSystem": {},
+
+  "outstanding": "Outstanding",
+  "@outstanding": {},
+
+  "outstandingOrderDetail": "Show outstanding orders",
+  "@outstandingOrderDetail": {},
+
+  "overdue": "Overdue",
+  "@overdue": {},
+
+  "overdueDetail": "Show overdue orders",
+  "@overdueDetail": {},
+
   "packaging": "Packaging",
   "@packaging": {},
 
@@ -618,6 +774,9 @@
   "@parts": {
     "description": "Part (multiple)"
   },
+
+  "partNotSalable": "Part not marked as salable",
+  "@partNotSalable": {},
 
   "partsNone": "No Parts",
   "@partsNone": {},
@@ -705,6 +864,9 @@
   "profileDelete": "Delete Server Profile",
   "@profileDelete": {},
 
+  "profileLogout": "Logout Profile",
+  "@profileLogout": {},
+
   "profileName": "Profile Name",
   "@profileName": {},
 
@@ -723,8 +885,14 @@
   "profileTapToCreate": "Tap to create or select a profile",
   "@profileTapToCreate": {},
 
+  "projectCode": "Project Code",
+  "@projectCode": {},
+
   "purchaseOrder": "Purchase Order",
   "@purchaseOrder": {},
+
+  "purchaseOrderCreate": "New Purchase Order",
+  "@purchaseOrderCreate": {},
 
   "purchaseOrderEdit": "Edit Purchase Order",
   "@purchaseOrderEdit": {},
@@ -755,9 +923,6 @@
   "quantityPositive": "Quantity must be positive",
   "@quantityPositive": {},
 
-  "quarantined": "Quarantined",
-  "@quarantined": {},
-
   "queryEmpty": "Enter search query",
   "@queryEmpty": {},
 
@@ -766,6 +931,9 @@
 
   "received": "Received",
   "@received": {},
+
+  "receivedFilterDetail": "Show received items",
+  "@receivedFilterDetail": {},
 
   "receiveItem": "Receive Item",
   "@receiveItem": {},
@@ -877,8 +1045,20 @@
   "returned": "Returned",
   "@returned": {},
 
+  "salesOrder": "Sales Order",
+  "@salesOrder": {},
+
   "salesOrders": "Sales Orders",
   "@salesOrders": {},
+
+  "salesOrderCreate": "New Sales Order",
+  "@saleOrderCreate": {},
+
+  "salesOrderEdit": "Edit Sales Order",
+  "@salesOrderEdit": {},
+
+  "salesOrderUpdated": "Sales order updated",
+  "@salesOrderUpdated": {},
 
   "save": "Save",
   "@save": {
@@ -889,11 +1069,23 @@
   "@scanBarcode": {
   },
 
+  "scanSupplierPart": "Scan supplier part barcode",
+  "@scanSupplierPart": {},
+
   "scanIntoLocation": "Scan Into Location",
   "@scanIntoLocation": {},
 
   "scanIntoLocationDetail": "Scan this item into location",
   "@scanIntoLocationDetail": {},
+
+  "scannerExternal": "External Scanner",
+  "@scannerExternal": {},
+
+  "scannerExternalDetail": "Use external scanner to read barcodes (wedge mode)",
+  "@scannerExternalDetail": {},
+
+  "scanReceivedParts": "Scan Received Parts",
+  "@scanReceivedParts": {},
 
   "search": "Search",
   "@search": {
@@ -929,6 +1121,9 @@
 
   "serialNumber": "Serial Number",
   "@serialNumber": {},
+
+  "serialNumbers": "Serial Numbers",
+  "@serialNumbers": {},
 
   "server": "Server",
   "@server": {},
@@ -992,6 +1187,18 @@
 
   "serverNotSelected": "Server not selected",
   "@serverNotSelected": {},
+
+  "shipments": "Shipments",
+  "@shipments": {},
+
+  "shipmentAdd": "Add Shipment",
+  "@shipmentAdd": {},
+
+  "shipped": "Shipped",
+  "@shipped": {},
+
+  "sku": "SKU",
+  "@sku": {},
 
   "sounds": "Sounds",
   "@sounds": {},
@@ -1116,6 +1323,9 @@
   "supplierPartEdit": "Edit Supplier Part",
   "@supplierPartEdit": {},
 
+  "supplierPartNumber": "Supplier Part Number",
+  "@supplierPartNumber": {},
+
   "supplierPartUpdated": "Supplier Part Updated",
   "@supplierPartUpdated": {},
 
@@ -1150,6 +1360,9 @@
   "@testResults": {
     "description": ""
   },
+
+  "testResultsDetail": "Display stock item test results",
+  "@testResultsDetail": {},
 
   "testResultAdd": "Add Test Result",
   "@testResultAdd": {},
@@ -1207,6 +1420,9 @@
 
   "translateHelp": "Help translate the InvenTree app",
   "@translateHelp": {},
+
+  "unitPrice": "Unit Price",
+  "@unitPrice": {},
 
   "units": "Units",
   "@units": {},

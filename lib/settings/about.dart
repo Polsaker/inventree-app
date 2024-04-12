@@ -98,8 +98,16 @@ class InvenTreeAboutWidget extends StatelessWidget {
 
       tiles.add(
         ListTile(
+          title: Text(L10().username),
+          subtitle: Text(InvenTreeAPI().username),
+          leading: InvenTreeAPI().username.isNotEmpty ? FaIcon(FontAwesomeIcons.user) : FaIcon(FontAwesomeIcons.userSlash, color: COLOR_DANGER),
+        )
+      );
+
+      tiles.add(
+        ListTile(
           title: Text(L10().version),
-          subtitle: Text(InvenTreeAPI().version.isNotEmpty ? InvenTreeAPI().version : L10().notConnected),
+          subtitle: Text(InvenTreeAPI().serverVersion.isNotEmpty ? InvenTreeAPI().serverVersion : L10().notConnected),
           leading: FaIcon(FontAwesomeIcons.circleInfo),
         )
       );
@@ -107,13 +115,13 @@ class InvenTreeAboutWidget extends StatelessWidget {
       tiles.add(
         ListTile(
           title: Text(L10().serverInstance),
-          subtitle: Text(InvenTreeAPI().instance.isNotEmpty ? InvenTreeAPI().instance : L10().notConnected),
+          subtitle: Text(InvenTreeAPI().serverInstance.isNotEmpty ? InvenTreeAPI().serverInstance : L10().notConnected),
           leading: FaIcon(FontAwesomeIcons.server),
         )
       );
 
       // Display extra tile if the server supports plugins
-      if (InvenTreeAPI().pluginsEnabled()) {
+      if (InvenTreeAPI().pluginsEnabled) {
         tiles.add(
           ListTile(
             title: Text(L10().pluginSupport),
@@ -165,7 +173,7 @@ class InvenTreeAboutWidget extends StatelessWidget {
       ListTile(
         title: Text(L10().releaseNotes),
         subtitle: Text(L10().appReleaseNotes),
-        leading: FaIcon(FontAwesomeIcons.fileLines, color: COLOR_CLICK),
+        leading: FaIcon(FontAwesomeIcons.fileLines, color: COLOR_ACTION),
         onTap: () {
           _releaseNotes(context);
         },
@@ -176,7 +184,7 @@ class InvenTreeAboutWidget extends StatelessWidget {
       ListTile(
         title: Text(L10().credits),
         subtitle: Text(L10().appCredits),
-        leading: FaIcon(FontAwesomeIcons.bullhorn, color: COLOR_CLICK),
+        leading: FaIcon(FontAwesomeIcons.bullhorn, color: COLOR_ACTION),
         onTap: () {
           _credits(context);
         }
@@ -187,7 +195,7 @@ class InvenTreeAboutWidget extends StatelessWidget {
       ListTile(
         title: Text(L10().documentation),
         subtitle: Text("https://docs.inventree.org"),
-        leading: FaIcon(FontAwesomeIcons.book, color: COLOR_CLICK),
+        leading: FaIcon(FontAwesomeIcons.book, color: COLOR_ACTION),
         onTap: () {
           _openDocs();
         },
@@ -198,7 +206,7 @@ class InvenTreeAboutWidget extends StatelessWidget {
       ListTile(
         title: Text(L10().translate),
         subtitle: Text(L10().translateHelp),
-        leading: FaIcon(FontAwesomeIcons.language, color: COLOR_CLICK),
+        leading: FaIcon(FontAwesomeIcons.language, color: COLOR_ACTION),
         onTap: () {
           _translate();
         }
@@ -209,7 +217,7 @@ class InvenTreeAboutWidget extends StatelessWidget {
       ListTile(
         title: Text(L10().reportBug),
         subtitle: Text(L10().reportBugDescription),
-        leading: FaIcon(FontAwesomeIcons.bug, color: COLOR_CLICK),
+        leading: FaIcon(FontAwesomeIcons.bug, color: COLOR_ACTION),
         onTap: () {
         _reportBug(context);
         },

@@ -8,9 +8,8 @@
 import "package:flutter_test/flutter_test.dart";
 
 import "package:inventree/api.dart";
-import "package:inventree/barcode.dart";
+import "package:inventree/barcode/barcode.dart";
 import "package:inventree/helpers.dart";
-import "package:inventree/user_profile.dart";
 
 import "package:inventree/inventree/part.dart";
 import "package:inventree/inventree/stock.dart";
@@ -23,26 +22,7 @@ void main() {
 
   // Connect to the server
   setUpAll(() async {
-    final prf = await UserProfileDBManager().getProfileByName("Test Profile");
-
-    if (prf != null) {
-      UserProfileDBManager().deleteProfile(prf);
-    }
-
-    bool result = await UserProfileDBManager().addProfile(
-      UserProfile(
-        name: "Test Profile",
-        server: "http://localhost:12345",
-        username: "testuser",
-        password: "testpassword",
-        selected: true,
-      ),
-    );
-
-    assert(result);
-
-    assert(await UserProfileDBManager().selectProfileByName("Test Profile"));
-    assert(await InvenTreeAPI().connectToServer());
+    await connectToTestServer();
   });
 
   setUp(() async {
@@ -57,7 +37,7 @@ void main() {
 
     test("Empty Barcode", () async {
       // Handle an 'empty' barcode
-      await handler.processBarcode(null, "");
+      await handler.processBarcode("");
 
       debugContains("Scanned barcode data: ''");
       debugContains("showSnackIcon: 'Barcode scan error'");
@@ -68,7 +48,7 @@ void main() {
     test("Junk Data", () async {
       // test scanning 'junk' data
 
-      await handler.processBarcode(null, "abcdefg");
+      await handler.processBarcode("abcdefg");
 
       debugContains("Scanned barcode data: 'abcdefg'");
       debugContains("showSnackIcon: 'No match for barcode'");
@@ -76,7 +56,7 @@ void main() {
 
     test("Invalid StockLocation", () async {
       // Scan an invalid stock location
-      await handler.processBarcode(null, '{"stocklocation": 999999}');
+      await handler.processBarcode('{"stocklocation": 999999}');
 
       debugContains("Scanned barcode data: '{\"stocklocation\": 999999}'");
       debugContains("showSnackIcon: 'No match for barcode'");
@@ -91,13 +71,13 @@ void main() {
     test("Scan Into Location", () async {
 
       final item = await InvenTreeStockItem().get(1) as InvenTreeStockItem?;
-
       assert(item != null);
+
       assert(item!.pk == 1);
 
       var handler = StockItemScanIntoLocationHandler(item!);
 
-      await handler.processBarcode(null, '{"stocklocation": 7}');
+      await handler.processBarcode('{"stocklocation": 7}');
       // Check the location has been updated
       await item.reload();
       assert(item.locationId == 7);
@@ -105,7 +85,7 @@ void main() {
       debugContains("Scanned stock location 7");
 
       // Scan into a new location
-      await handler.processBarcode(null, '{"stocklocation": 1}');
+      await handler.processBarcode('{"stocklocation": 1}');
       await item.reload();
       assert(item.locationId == 1);
 
@@ -125,7 +105,7 @@ void main() {
 
       // Scan multiple items into this location
       for (int id in [1, 2, 11]) {
-        await handler.processBarcode(null, '{"stockitem": ${id}}');
+        await handler.processBarcode('{"stockitem": ${id}}');
 
         var item = await InvenTreeStockItem().get(id) as InvenTreeStockItem?;
 
@@ -150,12 +130,12 @@ void main() {
       var handler = ScanParentLocationHandler(location!);
 
       // Scan into new parent location
-      await handler.processBarcode(null, '{"stocklocation": 1}');
+      await handler.processBarcode('{"stocklocation": 1}');
       await location.reload();
       assert(location.parentId == 1);
 
       // Scan back into old parent location
-      await handler.processBarcode(null, '{"stocklocation": 4}');
+      await handler.processBarcode('{"stocklocation": 4}');
       await location.reload();
       assert(location.parentId == 4);
 

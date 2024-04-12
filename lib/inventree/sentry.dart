@@ -1,11 +1,13 @@
 import "dart:io";
 
 import "package:device_info_plus/device_info_plus.dart";
-import "package:inventree/preferences.dart";
+import "package:one_context/one_context.dart";
 import "package:package_info_plus/package_info_plus.dart";
 import "package:sentry_flutter/sentry_flutter.dart";
 
 import "package:inventree/api.dart";
+import "package:inventree/dsn.dart";
+import "package:inventree/preferences.dart";
 
 Future<Map<String, dynamic>> getDeviceInfo() async {
 
@@ -43,7 +45,7 @@ Future<Map<String, dynamic>> getDeviceInfo() async {
       "hardware": androidDeviceInfo.hardware,
       "manufacturer": androidDeviceInfo.manufacturer,
       "product": androidDeviceInfo.product,
-      "version": androidDeviceInfo.version.release,
+      "systemVersion": androidDeviceInfo.version.release,
       "supported32BitAbis": androidDeviceInfo.supported32BitAbis,
       "supported64BitAbis": androidDeviceInfo.supported64BitAbis,
       "supportedAbis": androidDeviceInfo.supportedAbis,
@@ -56,7 +58,8 @@ Future<Map<String, dynamic>> getDeviceInfo() async {
 
 
 Map<String, dynamic> getServerInfo() => {
-  "version": InvenTreeAPI().version,
+  "version": InvenTreeAPI().serverVersion,
+  "apiVersion": InvenTreeAPI().apiVersion,
 };
 
 
@@ -82,6 +85,10 @@ bool isInDebugMode() {
 }
 
 Future<bool> sentryReportMessage(String message, {Map<String, String>? context}) async {
+
+  if (SENTRY_DSN_KEY.isEmpty) {
+    return false;
+  }
 
   final server_info = getServerInfo();
   final app_info = await getAppInfo();
@@ -148,7 +155,7 @@ Future<bool> sentryReportMessage(String message, {Map<String, String>? context})
 /*
  * Report an error message to sentry.io
  */
-Future<void> sentryReportError(String source, dynamic error, dynamic stackTrace, {Map<String, String> context = const {}}) async {
+Future<void> sentryReportError(String source, dynamic error, StackTrace? stackTrace, {Map<String, String> context = const {}}) async {
 
   print("----- Sentry Intercepted error: $error -----");
   print(stackTrace);
@@ -159,6 +166,10 @@ Future<void> sentryReportError(String source, dynamic error, dynamic stackTrace,
   if (isInDebugMode()) {
 
     print("----- In dev mode. Not sending report to Sentry.io -----");
+    return;
+  }
+
+  if (SENTRY_DSN_KEY.isEmpty) {
     return;
   }
 
@@ -191,6 +202,15 @@ Future<void> sentryReportError(String source, dynamic error, dynamic stackTrace,
 
   // Ensure we pass the 'source' of the error
   context["source"] = source;
+
+  if (OneContext.hasContext) {
+    final ctx = OneContext().context;
+
+    if (ctx != null) {
+      context["widget"] = ctx.widget.toString();
+      context["widgetType"] = ctx.widget.runtimeType.toString();
+    }
+  }
 
   Sentry.configureScope((scope) {
     scope.setExtra("server", server_info);

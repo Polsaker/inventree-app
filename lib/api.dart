@@ -5,25 +5,27 @@ import "dart:io";
 import "package:flutter/foundation.dart";
 import "package:http/http.dart" as http;
 import "package:intl/intl.dart";
-import "package:inventree/app_colors.dart";
-import "package:inventree/preferences.dart";
-
+import "package:inventree/main.dart";
+import "package:one_context/one_context.dart";
 import "package:open_filex/open_filex.dart";
 import "package:cached_network_image/cached_network_image.dart";
 import "package:flutter/material.dart";
 import "package:font_awesome_flutter/font_awesome_flutter.dart";
 import "package:flutter_cache_manager/flutter_cache_manager.dart";
-
-import "package:inventree/widget/dialogs.dart";
-import "package:inventree/l10.dart";
-import "package:inventree/helpers.dart";
-import "package:inventree/inventree/sentry.dart";
-import "package:inventree/inventree/model.dart";
-import "package:inventree/user_profile.dart";
-import "package:inventree/widget/snacks.dart";
 import "package:path_provider/path_provider.dart";
 
 import "package:inventree/api_form.dart";
+import "package:inventree/app_colors.dart";
+import "package:inventree/preferences.dart";
+import "package:inventree/l10.dart";
+import "package:inventree/helpers.dart";
+import "package:inventree/inventree/model.dart";
+import "package:inventree/inventree/notification.dart";
+import "package:inventree/inventree/status_codes.dart";
+import "package:inventree/inventree/sentry.dart";
+import "package:inventree/user_profile.dart";
+import "package:inventree/widget/dialogs.dart";
+import "package:inventree/widget/snacks.dart";
 
 
 /*
@@ -76,6 +78,26 @@ class APIResponse {
   List<dynamic> asList() {
     if (isList()) {
       return data as List<dynamic>;
+    } else {
+      return [];
+    }
+  }
+
+  /*
+   * Helper function to interpret response, and return a list.
+   * Handles case where the response is paginated, or a complete set of results
+   */
+  List<dynamic> resultsList() {
+
+    if (isList()) {
+      return asList();
+    } else if (isMap()) {
+      var response = asMap();
+      if (response.containsKey("results")) {
+        return response["results"] as List<dynamic>;
+      } else {
+        return [];
+      }
     } else {
       return [];
     }
@@ -148,6 +170,9 @@ class InvenTreeAPI {
 
   InvenTreeAPI._internal();
 
+  // Ensure we only ever create a single instance of the API class
+  static final InvenTreeAPI _api = InvenTreeAPI._internal();
+
   // List of callback functions to trigger when the connection status changes
   List<Function()> _statusCallbacks = [];
 
@@ -167,16 +192,13 @@ class InvenTreeAPI {
   bool _strictHttps = false;
 
   // Endpoint for requesting an API token
-  static const _URL_GET_TOKEN = "user/token/";
-
-  static const _URL_GET_ROLES = "user/roles/";
-
-  // Base URL for InvenTree API e.g. http://192.168.120.10:8000
-  String _BASE_URL = "";
+  static const _URL_TOKEN = "user/token/";
+  static const _URL_ROLES = "user/roles/";
+  static const _URL_ME = "user/me/";
 
   // Accessors for various url endpoints
   String get baseUrl {
-    String url = _BASE_URL;
+    String url = profile?.server ?? "";
 
     if (!url.endsWith("/")) {
       url += "/";
@@ -217,21 +239,22 @@ class InvenTreeAPI {
   // Available user roles (permissions) are loaded when connecting to the server
   Map<String, dynamic> roles = {};
 
-  // Authentication token (initially empty, must be requested)
-  String _token = "";
+  // Profile authentication token
+  String get token => profile?.token ?? "";
+
+  bool get hasToken => token.isNotEmpty;
 
   String? get serverAddress {
     return profile?.server;
   }
-
-  bool get hasToken => _token.isNotEmpty;
 
   /*
    * Check server connection and display messages if not connected.
    * Useful as a precursor check before performing operations.
    */
   bool checkConnection() {
-    // Firstly, is the server connected?
+
+    // Is the server connected?
     if (!isConnected()) {
 
       showSnackIcon(
@@ -247,16 +270,20 @@ class InvenTreeAPI {
     return true;
   }
 
-  // Server instance information
-  String instance = "";
+  // Map of user information
+  Map<String, dynamic> userInfo = {};
 
-  // Server version information
-  String _version = "";
+  String get username => (userInfo["username"] ?? "") as String;
 
-  // API version of the connected server
-  int _apiVersion = 1;
+  // Map of server information
+  Map<String, dynamic> serverInfo = {};
 
-  int get apiVersion => _apiVersion;
+  String get serverInstance => (serverInfo["instance"] ?? "") as String;
+  String get serverVersion => (serverInfo["version"] ?? "") as String;
+  int get apiVersion => (serverInfo["apiVersion"] ?? 1) as int;
+
+  // Plugins enabled at API v34 and above
+  bool get pluginsEnabled => apiVersion >= 34 && (serverInfo["plugins_enabled"] ?? false) as bool;
 
   // API endpoint for receiving purchase order line items was introduced in v12
   bool get supportsPoReceive => apiVersion >= 12;
@@ -282,12 +309,38 @@ class InvenTreeAPI {
   // Consolidated search request API v102 or newer
   bool get supportsConsolidatedSearch => isConnected() && apiVersion >= 102;
 
-  // Are plugins enabled on the server?
-  bool _pluginsEnabled = false;
+  // ReturnOrder supports API v104 or newer
+  bool get supportsReturnOrders => isConnected() && apiVersion >= 104;
 
-  // True plugin support requires API v34 or newer
-  // Returns True only if the server API version is new enough, and plugins are enabled
-  bool pluginsEnabled() => apiVersion >= 34 && _pluginsEnabled;
+  // "Contact" model exposed to API
+  bool get supportsContactModel => isConnected() && apiVersion >= 104;
+
+  // Status label endpoints API v105 or newer
+  bool get supportsStatusLabelEndpoints => isConnected() && apiVersion >= 105;
+
+  // Regex search API v106 or newer
+  bool get supportsRegexSearch => isConnected() && apiVersion >= 106;
+
+  // Order barcodes API v107 or newer
+  bool get supportsOrderBarcodes => isConnected() && apiVersion >= 107;
+
+  // Project codes require v109 or newer
+  bool get supportsProjectCodes => isConnected() && apiVersion >= 109;
+
+  // Does the server support extra fields on stock adjustment actions?
+  bool get supportsStockAdjustExtraFields => isConnected() && apiVersion >= 133;
+
+  // Does the server support receiving items against a PO using barcodes?
+  bool get supportsBarcodePOReceiveEndpoint => isConnected() && apiVersion >= 139;
+
+  // Does the server support adding line items to a PO using barcodes?
+  bool get supportsBarcodePOAddLineEndpoint => isConnected() && apiVersion >= 153;
+
+  // Does the server support allocating stock to sales order using barcodes?
+  bool get supportsBarcodeSOAllocateEndpoint => isConnected() && apiVersion >= 160;
+
+  // Does the server support "null" top-level filtering for PartCategory and StockLocation endpoints?
+  bool get supportsNullTopLevelFiltering => isConnected() && apiVersion < 174;
 
   // Cached list of plugins (refreshed when we connect to the server)
   List<InvenTreePlugin> _plugins = [];
@@ -315,9 +368,6 @@ class InvenTreeAPI {
   // Test if the provided plugin mixin is supported by any active plugins
   bool supportsMixin(String mixin) => getPlugins(mixin: mixin).isNotEmpty;
 
-  // Getter for server version information
-  String get version => _version;
-
   // Connection status flag - set once connection has been validated
   bool _connected = false;
 
@@ -331,36 +381,68 @@ class InvenTreeAPI {
     return !isConnected() && _connecting;
   }
 
-  // Ensure we only ever create a single instance of the API class
-  static final InvenTreeAPI _api = InvenTreeAPI._internal();
 
   /*
-   * Connect to the remote InvenTree server:
+   * Perform the required login steps, in sequence.
+   * Internal function, called by connectToServer()
    *
-   * - Check that the InvenTree server exists
-   * - Request user token from the server
-   * - Request user roles from the server
+   * Performs the following steps:
+   *
+   * 1. Check the api/ endpoint to see if the sever exists
+   * 2. If no token available, perform user authentication
+   * 2. Check the api/user/me/ endpoint to see if the user is authenticated
+   * 3. If not authenticated, purge token, and exit
+   * 4. Request user roles
+   * 5. Request information on available plugins
    */
-  Future<bool> _connect() async {
+  Future<bool> _connectToServer() async {
 
-    if (profile == null) return false;
+    if (!await _checkServer()) {
+      return false;
+    }
+
+    if (!hasToken) {
+      return false;
+    }
+
+    if (!await _checkAuth()) {
+      showServerError(_URL_ME, L10().serverNotConnected, L10().serverAuthenticationError);
+
+      // Invalidate the token
+      if (profile != null) {
+        profile!.token = "";
+        await UserProfileDBManager().updateProfile(profile!);
+      }
+
+      return false;
+    }
+
+    if (!await _fetchRoles()) {
+      return false;
+    }
+
+    if (!await _fetchPlugins()) {
+      return false;
+    }
+
+    // Finally, connected
+    return true;
+  }
+
+
+  /*
+   * Check that the remote server is available.
+   * Ping the api/ endpoint, which does not require user authentication
+   */
+  Future<bool> _checkServer() async {
 
     String address = profile?.server ?? "";
-    String username = profile?.username ?? "";
-    String password = profile?.password ?? "";
 
-    address = address.trim();
-    username = username.trim();
-    password = password.trim();
-
-    // Cache the "strictHttps" setting, so we can use it later without async requirement
-    _strictHttps = await InvenTreeSettingsManager().getValue(INV_STRICT_HTTPS, false) as bool;
-
-    if (address.isEmpty || username.isEmpty || password.isEmpty) {
+    if (address.isEmpty) {
       showSnackIcon(
-        L10().incompleteDetails,
-        icon: FontAwesomeIcons.circleExclamation,
-        success: false
+          L10().incompleteDetails,
+          icon: FontAwesomeIcons.circleExclamation,
+          success: false
       );
       return false;
     }
@@ -369,27 +451,24 @@ class InvenTreeAPI {
       address = address + "/";
     }
 
-    _BASE_URL = address;
+    // Cache the "strictHttps" setting, so we can use it later without async requirement
+    _strictHttps = await InvenTreeSettingsManager().getValue(INV_STRICT_HTTPS, false) as bool;
 
-    // Clear the list of available plugins
-    _plugins.clear();
+    debug("Connecting to ${apiUrl}");
 
-    debug("Connecting to ${apiUrl} -> username=${username}");
-
-    APIResponse response;
-
-    response = await get("", expectedStatusCode: 200);
+    APIResponse response = await get("", expectedStatusCode: 200);
 
     if (!response.successful()) {
+      debug("Server returned invalid response: ${response.statusCode}");
       showStatusCodeError(apiUrl, response.statusCode, details: response.data.toString());
       return false;
     }
 
-    var data = response.asMap();
+    Map<String, dynamic> _data = response.asMap();
 
-    // We expect certain response from the server
-    if (!data.containsKey("server") || !data.containsKey("version") || !data.containsKey("instance")) {
+    serverInfo = {..._data};
 
+    if (serverVersion.isEmpty) {
       showServerError(
         apiUrl,
         L10().missingData,
@@ -399,17 +478,9 @@ class InvenTreeAPI {
       return false;
     }
 
-    // Record server information
-    _version = (data["version"] ?? "") as String;
-    instance = (data["instance"] ?? "") as String;
+    if (apiVersion < _minApiVersion) {
 
-    // Default API version is 1 if not provided
-    _apiVersion = (data["apiVersion"] ?? 1) as int;
-    _pluginsEnabled = (data["plugins_enabled"] ?? false) as bool;
-
-    if (_apiVersion < _minApiVersion) {
-
-      String message = L10().serverApiVersion + ": ${_apiVersion}";
+      String message = L10().serverApiVersion + ": ${apiVersion}";
 
       message += "\n";
       message += L10().serverApiRequired + ": ${_minApiVersion}";
@@ -427,18 +498,86 @@ class InvenTreeAPI {
       return false;
     }
 
-    /**
-     * Request user token information from the server
-     * This is the stage that we check username:password credentials!
-     */
-    // Clear the existing token value
-    _token = "";
+    // At this point, we have a server which is responding
+    return true;
+  }
 
-    response = await get(_URL_GET_TOKEN);
+
+  /*
+   * Check that the user is authenticated
+   * Fetch the user information
+   */
+  Future<bool> _checkAuth() async {
+    debug("Checking user auth @ ${_URL_ME}");
+
+    userInfo.clear();
+
+    final response = await get(_URL_ME);
+
+    if (response.successful() && response.statusCode == 200) {
+      userInfo = response.asMap();
+      return true;
+    } else {
+      debug("Auth request failed: Server returned status ${response.statusCode}");
+      if (response.data != null) {
+        debug("Server response: ${response.data.toString()}");
+      }
+
+      return false;
+    }
+  }
+
+  /*
+   * Fetch a token from the server,
+   * with a temporary authentication header
+   */
+  Future<APIResponse> fetchToken(UserProfile userProfile, String username, String password) async {
+
+    debug("Fetching user token from ${userProfile.server}");
+
+    profile = userProfile;
+
+    // Form a name to request the token with
+    String platform_name = "inventree-mobile-app";
+
+    final deviceInfo = await getDeviceInfo();
+
+    if (Platform.isAndroid) {
+      platform_name += "-android";
+    } else if (Platform.isIOS) {
+      platform_name += "-ios";
+    } else if (Platform.isMacOS) {
+      platform_name += "-macos";
+    } else if (Platform.isLinux) {
+      platform_name += "-linux";
+    } else if (Platform.isWindows) {
+      platform_name += "-windows";
+    }
+
+    if (deviceInfo.containsKey("name")) {
+      platform_name += "-" + (deviceInfo["name"] as String);
+    }
+
+    if (deviceInfo.containsKey("model")) {
+      platform_name += "-" + (deviceInfo["model"] as String);
+    }
+
+    if (deviceInfo.containsKey("systemVersion")) {
+      platform_name += "-" + (deviceInfo["systemVersion"] as String);
+    }
+
+    // Construct auth header from username and password
+    String authHeader = "Basic " + base64Encode(utf8.encode("${username}:${password}"));
+
+    // Perform request to get a token
+    final response = await get(
+        _URL_TOKEN,
+        params: { "name": platform_name},
+        headers: { HttpHeaders.authorizationHeader: authHeader}
+    );
 
     // Invalid response
     if (!response.successful()) {
-
       switch (response.statusCode) {
         case 401:
         case 403:
@@ -455,35 +594,29 @@ class InvenTreeAPI {
 
       debug("Token request failed: STATUS ${response.statusCode}");
 
-      return false;
+      if (response.data != null) {
+        debug("Response data: ${response.data.toString()}");
+      }
     }
 
-    data = response.asMap();
+    final data = response.asMap();
 
     if (!data.containsKey("token")) {
       showServerError(
-          apiUrl,
-          L10().tokenMissing,
-          L10().tokenMissingFromResponse,
+        apiUrl,
+        L10().tokenMissing,
+        L10().tokenMissingFromResponse,
       );
-
-      return false;
     }
 
-    // Return the received token
-    _token = (data["token"] ?? "") as String;
+    // Save the token to the user profile
+    userProfile.token = (data["token"] ?? "") as String;
 
-    debug("Received token from server");
+    debug("Received token from server: ${userProfile.token}");
 
-    // Request user role information (async)
-    getUserRoles();
+    await UserProfileDBManager().updateProfile(userProfile);
 
-    // Request plugin information (async)
-    getPluginInformation();
-
-    // Ok, probably pretty good...
-    return true;
-
+    return response;
   }
 
   void disconnectFromServer() {
@@ -491,26 +624,27 @@ class InvenTreeAPI {
 
     _connected = false;
     _connecting = false;
-    _token = "";
     profile = null;
 
     // Clear received settings
     _globalSettings.clear();
     _userSettings.clear();
 
+    roles.clear();
+    _plugins.clear();
+    serverInfo.clear();
     _connectionStatusChanged();
   }
 
-  /*
-   * Public facing connection function
+
+  /* Public facing connection function.
    */
-  Future<bool> connectToServer() async {
+  Future<bool> connectToServer(UserProfile prf) async {
 
     // Ensure server is first disconnected
     disconnectFromServer();
 
-    // Load selected profile
-    profile = await UserProfileDBManager().getSelectedProfile();
+    profile = prf;
 
     if (profile == null) {
       showSnackIcon(
@@ -521,12 +655,14 @@ class InvenTreeAPI {
       return false;
     }
 
-    _connecting = true;
+    // Cancel notification timer
+    _notification_timer?.cancel();
 
+    _connecting = true;
     _connectionStatusChanged();
 
-    _connected = await _connect();
-
+    // Perform the actual connection routine
+    _connected = await _connectToServer();
     _connecting = false;
 
     if (_connected) {
@@ -535,9 +671,20 @@ class InvenTreeAPI {
         icon: FontAwesomeIcons.server,
         success: true,
       );
+
+      if (_notification_timer == null) {
+        debug("starting notification timer");
+        _notification_timer = Timer.periodic(
+            Duration(seconds: 5),
+                (timer) {
+              _refreshNotifications();
+            });
+      }
     }
 
     _connectionStatusChanged();
+
+    fetchStatusCodeData();
 
     return _connected;
   }
@@ -545,18 +692,13 @@ class InvenTreeAPI {
   /*
    * Request the user roles (permissions) from the InvenTree server
    */
-  Future<bool> getUserRoles() async {
+  Future<bool> _fetchRoles() async {
 
     roles.clear();
 
     debug("API: Requesting user role data");
 
-    // Next we request the permissions assigned to the current user
-    // Note: 2021-02-27 this "roles" feature for the API was just introduced.
-    // Any "older" version of the server allows any API method for any logged in user!
-    // We will return immediately, but request the user roles in the background
-
-    final response = await get(_URL_GET_ROLES, expectedStatusCode: 200);
+    final response = await get(_URL_ROLES, expectedStatusCode: 200);
 
     if (!response.successful()) {
       return false;
@@ -570,18 +712,19 @@ class InvenTreeAPI {
 
       return true;
     } else {
+      showServerError(
+        apiUrl,
+        L10().serverError,
+        L10().errorUserRoles,
+      );
       return false;
     }
   }
 
   // Request plugin information from the server
-  Future<void> getPluginInformation() async {
+  Future<bool> _fetchPlugins() async {
 
-    // The server does not support plugins, or they are not enabled
-    if (!pluginsEnabled()) {
-      _plugins.clear();
-      return;
-    }
+    _plugins.clear();
 
     debug("API: getPluginInformation()");
 
@@ -596,26 +739,34 @@ class InvenTreeAPI {
         }
       }
     }
+
+    return true;
   }
 
+  /*
+   * Check if the user has the given role.permission assigned
+   * e.g. "part", "change"
+   */
   bool checkPermission(String role, String permission) {
-    /*
-     * Check if the user has the given role.permission assigned
-     *e
-     * e.g. "part", "change"
-     */
+
+    if (!_connected) {
+      return false;
+    }
 
     // If we do not have enough information, assume permission is allowed
     if (roles.isEmpty) {
+      debug("checkPermission - no roles defined!");
       return true;
     }
 
     if (!roles.containsKey(role)) {
+      debug("checkPermission - role '$role' not found!");
       return true;
     }
 
     if (roles[role] == null) {
-      return true;
+      debug("checkPermission - role '$role' is null!");
+      return false;
     }
 
     try {
@@ -701,10 +852,9 @@ class InvenTreeAPI {
       _request = await client.openUrl("GET", _uri).timeout(Duration(seconds: 10));
 
       // Set headers
-      _request.headers.set(HttpHeaders.authorizationHeader, _authorizationHeader());
-      _request.headers.set(HttpHeaders.acceptHeader, "application/json");
-      _request.headers.set(HttpHeaders.contentTypeHeader, "application/json");
-      _request.headers.set(HttpHeaders.acceptLanguageHeader, Intl.getCurrentLocale());
+      defaultHeaders().forEach((key, value) {
+        _request?.headers.set(key, value);
+      });
 
     } on SocketException catch (error) {
       debug("SocketException at ${url}: ${error.toString()}");
@@ -803,7 +953,7 @@ class InvenTreeAPI {
       response.data = json.decode(jsondata);
 
       // Report a server-side error
-      if (response.statusCode >= 500) {
+      if (response.statusCode == 500) {
         sentryReportMessage(
             "Server error in uploadFile()",
             context: {
@@ -971,7 +1121,14 @@ class InvenTreeAPI {
    * @param method is the HTTP method e.g. "POST" / "PATCH" / "GET" etc;
    * @param params is the request parameters
    */
-  Future<HttpClientRequest?> apiRequest(String url, String method, {Map<String, String> urlParams = const {}}) async {
+  Future<HttpClientRequest?> apiRequest(
+      String url,
+      String method,
+      {
+        Map<String, String> urlParams = const {},
+        Map<String, String> headers = const {},
+      }
+    ) async {
 
     var _url = makeApiUrl(url);
 
@@ -1011,11 +1168,15 @@ class InvenTreeAPI {
     try {
       _request = await client.openUrl(method, _uri).timeout(Duration(seconds: 10));
 
-      // Set headers
-      _request.headers.set(HttpHeaders.authorizationHeader, _authorizationHeader());
-      _request.headers.set(HttpHeaders.acceptHeader, "application/json");
-      _request.headers.set(HttpHeaders.contentTypeHeader, "application/json");
-      _request.headers.set(HttpHeaders.acceptLanguageHeader, Intl.getCurrentLocale());
+      // Default headers
+      defaultHeaders().forEach((key, value) {
+        _request?.headers.set(key, value);
+      });
+
+      // Custom headers
+      headers.forEach((key, value) {
+        _request?.headers.set(key, value);
+      });
 
       return _request;
     } on SocketException catch (error) {
@@ -1025,6 +1186,10 @@ class InvenTreeAPI {
     } on TimeoutException {
       debug("TimeoutException at ${url}");
       showTimeoutError(url);
+      return null;
+    } on OSError catch (error) {
+      debug("OSError at ${url}: ${error.toString()}");
+      showServerError(url, L10().connectionRefused, error.toString());
       return null;
     } on CertificateException catch (error) {
       debug("CertificateException at ${url}:");
@@ -1085,6 +1250,7 @@ class InvenTreeAPI {
         // Some server errors are not ones for us to worry about!
         switch (_response.statusCode) {
           case 502:   // Bad gateway
+          case 503:   // Service unavailable
           case 504:   // Gateway timeout
             break;
           default:    // Any other error code
@@ -1156,6 +1322,11 @@ class InvenTreeAPI {
         case 404:
           // Ignore for unauthorized pages
           break;
+        case 502:
+        case 503:
+        case 504:
+          // Ignore for server errors
+          break;
         default:
           sentryReportMessage(
               "Error decoding JSON response from server",
@@ -1185,13 +1356,15 @@ class InvenTreeAPI {
    * Perform a HTTP GET request
    * Returns a json object (or null if did not complete)
    */
-  Future<APIResponse> get(String url, {Map<String, String> params = const {}, int? expectedStatusCode=200}) async {
+  Future<APIResponse> get(String url, {Map<String, String> params = const {}, Map<String, String> headers = const {}, int? expectedStatusCode=200}) async {
 
     HttpClientRequest? request = await apiRequest(
       url,
       "GET",
       urlParams: params,
+      headers: headers,
     );
+
 
     if (request == null) {
       // Return an "invalid" APIResponse
@@ -1230,23 +1403,47 @@ class InvenTreeAPI {
     );
   }
 
+  // Find the current locale code for the running app
+  String get currentLocale {
+
+    if (OneContext.hasContext) {
+      // Try to get app context
+      BuildContext? context = OneContext().context;
+
+      if (context != null) {
+        Locale? locale = InvenTreeApp
+            .of(context)
+            ?.locale;
+
+        if (locale != null) {
+          return locale.languageCode; //.toString();
+        }
+      }
+    }
+
+    // Fallback value
+    return Intl.getCurrentLocale();
+  }
+
   // Return a list of request headers
   Map<String, String> defaultHeaders() {
     Map<String, String> headers = {};
 
-    headers[HttpHeaders.authorizationHeader] = _authorizationHeader();
+    if (hasToken) {
+      headers[HttpHeaders.authorizationHeader] = _authorizationHeader();
+    }
+
     headers[HttpHeaders.acceptHeader] = "application/json";
     headers[HttpHeaders.contentTypeHeader] = "application/json";
-    headers[HttpHeaders.acceptLanguageHeader] = Intl.getCurrentLocale();
+    headers[HttpHeaders.acceptLanguageHeader] = currentLocale;
 
     return headers;
   }
 
+  // Construct a token authorization header
   String _authorizationHeader() {
-    if (_token.isNotEmpty) {
-      return "Token $_token";
-    } else if (profile != null) {
-      return "Basic " + base64Encode(utf8.encode("${profile?.username}:${profile?.password}"));
+    if (token.isNotEmpty) {
+      return "Token ${token}";
     } else {
       return "";
     }
@@ -1255,6 +1452,26 @@ class InvenTreeAPI {
   static String get staticImage => "/static/img/blank_image.png";
 
   static String get staticThumb => "/static/img/blank_image.thumbnail.png";
+
+  CachedNetworkImage? getThumbnail(String imageUrl, {double size = 40, bool hideIfNull = false}) {
+
+    if (hideIfNull) {
+      if (imageUrl.isEmpty) {
+        return null;
+      }
+    }
+
+    try {
+      return getImage(
+          imageUrl,
+          width: size,
+          height: size
+      );
+    } catch (error, stackTrace) {
+      sentryReportError("_getThumbnail", error, stackTrace);
+      return null;
+    }
+  }
 
   /*
    * Load image from the InvenTree server,
@@ -1313,6 +1530,12 @@ class InvenTreeAPI {
     }
   }
 
+  // Return a boolean global setting value
+  Future<bool> getGlobalBooleanSetting(String key) async {
+    String value = await getGlobalSetting(key);
+    return value.toLowerCase() == "true";
+  }
+
   Future<String> getUserSetting(String key) async {
     if (!supportsSettings) return "";
 
@@ -1331,6 +1554,12 @@ class InvenTreeAPI {
     } else {
       return "";
     }
+  }
+
+  // Return a boolean user setting value
+  Future<bool> getUserBooleanSetting(String key) async {
+    String value = await getUserSetting(key);
+    return value.toLowerCase() == "true";
   }
 
   /*
@@ -1407,4 +1636,59 @@ class InvenTreeAPI {
       }
     });
   }
+
+  // Keep an internal map of status codes
+  Map<String, InvenTreeStatusCode> _status_codes = {};
+
+  // Return a status class based on provided URL
+  InvenTreeStatusCode _get_status_class(String url) {
+    if (!_status_codes.containsKey(url)) {
+      _status_codes[url] = InvenTreeStatusCode(url);
+    }
+
+    return _status_codes[url]!;
+  }
+
+  // Accessors methods for various status code classes
+  InvenTreeStatusCode get StockHistoryStatus => _get_status_class("stock/track/status/");
+  InvenTreeStatusCode get StockStatus => _get_status_class("stock/status/");
+  InvenTreeStatusCode get PurchaseOrderStatus => _get_status_class("order/po/status/");
+  InvenTreeStatusCode get SalesOrderStatus => _get_status_class("order/so/status/");
+
+  void clearStatusCodeData() {
+    StockHistoryStatus.data.clear();
+    StockStatus.data.clear();
+    PurchaseOrderStatus.data.clear();
+    SalesOrderStatus.data.clear();
+  }
+
+  Future<void> fetchStatusCodeData({bool forceReload = true}) async {
+    StockHistoryStatus.load(forceReload: forceReload);
+    StockStatus.load(forceReload: forceReload);
+    PurchaseOrderStatus.load(forceReload: forceReload);
+    SalesOrderStatus.load(forceReload: forceReload);
+  }
+
+  int notification_counter = 0;
+
+  Timer? _notification_timer;
+
+  /*
+   * Update notification counter (called periodically)
+   */
+  Future<void> _refreshNotifications() async {
+    if (!isConnected()) {
+      return;
+    }
+
+    if (!supportsNotifications) {
+      return;
+    }
+
+    InvenTreeNotification().count(filters: {"read": "false"}).then((int n) {
+      notification_counter = n;
+    });
+  }
 }
+
+

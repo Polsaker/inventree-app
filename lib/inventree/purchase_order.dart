@@ -1,37 +1,58 @@
+import "package:inventree/api.dart";
+import "package:inventree/helpers.dart";
 import "package:inventree/inventree/company.dart";
-import "package:inventree/inventree/part.dart";
-
 import "package:inventree/inventree/model.dart";
+import "package:inventree/inventree/orders.dart";
 
-// TODO: In the future, status codes should be retrieved from the server
-const int PO_STATUS_PENDING = 10;
-const int PO_STATUS_PLACED = 20;
-const int PO_STATUS_COMPLETE = 30;
-const int PO_STATUS_CANCELLED = 40;
-const int PO_STATUS_LOST = 50;
-const int PO_STATUS_RETURNED = 60;
 
-class InvenTreePurchaseOrder extends InvenTreeModel {
+/*
+ * Class representing an individual PurchaseOrder instance
+ */
+class InvenTreePurchaseOrder extends InvenTreeOrder {
 
   InvenTreePurchaseOrder() : super();
 
   InvenTreePurchaseOrder.fromJson(Map<String, dynamic> json) : super.fromJson(json);
 
   @override
+  InvenTreeModel createFromJson(Map<String, dynamic> json) => InvenTreePurchaseOrder.fromJson(json);
+
+  @override
   String get URL => "order/po/";
+
+  @override
+  List<String> get rolesRequired => ["purchase_order"];
 
   String get receive_url => "${url}receive/";
 
   @override
-  Map<String, dynamic> formFields() {
-    return {
+  Map<String, Map<String, dynamic>> formFields() {
+    Map<String, Map<String, dynamic>> fields = {
       "reference": {},
+      "supplier": {
+        "filters": {
+          "is_supplier": true,
+        },
+      },
       "supplier_reference": {},
       "description": {},
+      "project_code": {},
       "target_date": {},
       "link": {},
       "responsible": {},
+      "contact": {
+        "filters": {
+          "company": supplierId,
+        }
+      },
     };
+
+    if (!InvenTreeAPI().supportsProjectCodes) {
+      fields.remove("project_code");
+    }
+
+    return fields;
+
   }
 
   @override
@@ -48,23 +69,7 @@ class InvenTreePurchaseOrder extends InvenTreeModel {
     };
   }
 
-  String get issueDate => (jsondata["issue_date"] ?? "") as String;
-
-  String get completeDate => (jsondata["complete_date"] ?? "") as String;
-
-  String get creationDate => (jsondata["creation_date"] ?? "") as String;
-
-  String get targetDate => (jsondata["target_date"] ?? "") as String;
-
-  int get lineItemCount => (jsondata["line_items"] ?? 0) as int;
-
-  bool get overdue => (jsondata["overdue"] ?? false) as bool;
-
-  String get reference => (jsondata["reference"] ?? "") as String;
-
-  int get responsibleId => (jsondata["responsible"] ?? -1) as int;
-
-  int get supplierId => (jsondata["supplier"] ?? -1) as int;
+  int get supplierId => getInt("supplier");
 
   InvenTreeCompany? get supplier {
 
@@ -77,29 +82,15 @@ class InvenTreePurchaseOrder extends InvenTreeModel {
     }
   }
 
-  String get supplierReference => (jsondata["supplier_reference"] ?? "") as String;
+  String get supplierReference => getString("supplier_reference");
 
-  int get status => (jsondata["status"] ?? -1) as int;
+  bool get isOpen => api.PurchaseOrderStatus.isNameIn(status, ["PENDING", "PLACED"]);
 
-  String get statusText => (jsondata["status_text"] ?? "") as String;
+  bool get isPending => api.PurchaseOrderStatus.isNameIn(status, ["PENDING"]);
 
-  bool get isOpen => status == PO_STATUS_PENDING || status == PO_STATUS_PLACED;
+  bool get isPlaced => api.PurchaseOrderStatus.isNameIn(status, ["PLACED"]);
 
-  bool get isPlaced => status == PO_STATUS_PLACED;
-
-  bool get isFailed => status == PO_STATUS_CANCELLED || status == PO_STATUS_LOST || status == PO_STATUS_RETURNED;
-
-  double? get totalPrice {
-    String price = (jsondata["total_price"] ?? "") as String;
-
-    if (price.isEmpty) {
-      return null;
-    } else {
-      return double.tryParse(price);
-    }
-  }
-
-  String get totalPriceCurrency => (jsondata["total_price_currency"] ?? "") as String;
+  bool get isFailed => api.PurchaseOrderStatus.isNameIn(status, ["CANCELLED", "LOST", "RETURNED"]);
 
   Future<List<InvenTreePOLineItem>> getLineItems() async {
 
@@ -120,34 +111,59 @@ class InvenTreePurchaseOrder extends InvenTreeModel {
     return items;
   }
 
-  @override
-  InvenTreeModel createFromJson(Map<String, dynamic> json) {
-    return InvenTreePurchaseOrder.fromJson(json);
+  /// Mark this order as "placed" / "issued"
+  Future<void> issueOrder() async {
+    // Order can only be placed when the order is 'pending'
+    if (!isPending) {
+      return;
+    }
+
+    await api.post("${url}issue/", expectedStatusCode: 201);
+  }
+
+  /// Mark this order as "cancelled"
+  Future<void> cancelOrder() async {
+    if (!isOpen) {
+      return;
+    }
+
+    await api.post("${url}cancel/", expectedStatusCode: 201);
   }
 }
 
-class InvenTreePOLineItem extends InvenTreeModel {
+class InvenTreePOLineItem extends InvenTreeOrderLine {
 
   InvenTreePOLineItem() : super();
 
   InvenTreePOLineItem.fromJson(Map<String, dynamic> json) : super.fromJson(json);
 
   @override
+  InvenTreeModel createFromJson(Map<String, dynamic> json) => InvenTreePOLineItem.fromJson(json);
+
+  @override
   String get URL => "order/po-line/";
 
   @override
-  Map<String, dynamic> formFields() {
+  List<String> get rolesRequired => ["purchase_order"];
+
+  @override
+  Map<String, Map<String, dynamic>> formFields() {
     return {
-      // TODO: @Guusggg Not sure what will come here.
-      // "quantity": {},
-      // "reference": {},
-      // "notes": {},
-      // "order": {},
-      // "part": {},
-      "received": {},
-      // "purchase_price": {},
-      // "purchase_price_currency": {},
-      // "destination": {}
+      "part": {
+        // We cannot edit the supplier part field here
+        "hidden": true,
+      },
+      "order": {
+        // We cannot edit the order field here
+        "hidden": true,
+      },
+      "reference": {},
+      "quantity": {},
+      "purchase_price": {},
+      "purchase_price_currency": {},
+      "destination": {},
+      "notes": {},
+      "link": {},
     };
   }
 
@@ -165,29 +181,23 @@ class InvenTreePOLineItem extends InvenTreeModel {
     };
   }
 
+  double get received => getDouble("received");
+
   bool get isComplete => received >= quantity;
 
-  double get quantity => (jsondata["quantity"] ?? 0) as double;
+  double get progressRatio {
+    if (quantity <= 0 || received <= 0) {
+      return 0;
+    }
 
-  double get received => (jsondata["received"] ?? 0) as double;
+    return received / quantity;
+  }
+
+  String get progressString => simpleNumberString(received) + " / " + simpleNumberString(quantity);
 
   double get outstanding => quantity - received;
 
-  String get reference => (jsondata["reference"] ?? "") as String;
-
-  int get orderId => (jsondata["order"] ?? -1) as int;
-
-  int get supplierPartId => (jsondata["part"] ?? -1) as int;
-
-  InvenTreePart? get part {
-    dynamic part_detail = jsondata["part_detail"];
-
-    if (part_detail == null) {
-      return null;
-    } else {
-      return InvenTreePart.fromJson(part_detail as Map<String, dynamic>);
-    }
-  }
+  int get supplierPartId => getInt("part");
 
   InvenTreeSupplierPart? get supplierPart {
 
@@ -200,24 +210,19 @@ class InvenTreePOLineItem extends InvenTreeModel {
     }
   }
 
-  double get purchasePrice => double.parse((jsondata["purchase_price"] ?? "") as String);
+  String get SKU => getString("SKU", subKey: "supplier_part_detail");
 
-  String get purchasePriceCurrency => (jsondata["purchase_price_currency"] ?? "") as String;
+  double get purchasePrice => getDouble("purchase_price");
+  
+  String get purchasePriceCurrency => getString("purchase_price_currency");
 
-  String get purchasePriceString => (jsondata["purchase_price_string"] ?? "") as String;
+  int get destination => getInt("destination");
 
-  int get destination => (jsondata["destination"] ?? -1) as int;
-
-  Map<String, dynamic> get destinationDetail => (jsondata["destination_detail"] ?? {}) as Map<String, dynamic>;
-
-  @override
-  InvenTreeModel createFromJson(Map<String, dynamic> json) {
-    return InvenTreePOLineItem.fromJson(json);
-  }
+  Map<String, dynamic> get destinationDetail => getMap("destination_detail");
 }
 
 /*
- * Class representing an attachment file against a StockItem object
+ * Class representing an attachment file against a PurchaseOrder object
  */
 class InvenTreePurchaseOrderAttachment extends InvenTreeAttachment {
 
@@ -232,7 +237,6 @@ class InvenTreePurchaseOrderAttachment extends InvenTreeAttachment {
   String get URL => "order/po/attachment/";
 
   @override
-  InvenTreeModel createFromJson(Map<String, dynamic> json) {
-    return InvenTreePurchaseOrderAttachment.fromJson(json);
-  }
+  InvenTreeModel createFromJson(Map<String, dynamic> json) => InvenTreePurchaseOrderAttachment.fromJson(json);
+
 }

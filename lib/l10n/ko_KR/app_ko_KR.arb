@@ -1,5 +1,5 @@
 {
-  "@@locale": "en",
+  "@@locale": "ko",
   "add": "추가",
   "@add": {
     "description": "add"
@@ -12,6 +12,7 @@
   "@appReleaseNotes": {},
   "appSettings": "앱 설정",
   "@appSettings": {},
+  "@barodeScanPaused": {},
   "billOfMaterials": "부품 명세서",
   "@billOfMaterials": {},
   "cancel": "취소",
@@ -50,6 +51,7 @@
   "@reportBug": {},
   "response505": "지원되지 않는 HTTP 버전",
   "@response505": {},
+  "@saleOrderCreate": {},
   "save": "저장",
   "@save": {
     "description": "Save"

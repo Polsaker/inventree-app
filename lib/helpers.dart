@@ -10,8 +10,13 @@
 import "dart:io";
 import "package:currency_formatter/currency_formatter.dart";
 
-import "package:audioplayers/audioplayers.dart";
 import "package:one_context/one_context.dart";
+import "package:url_launcher/url_launcher.dart";
+import "package:audioplayers/audioplayers.dart";
+
+import "package:inventree/l10.dart";
+import "package:inventree/widget/snacks.dart";
+
 
 
 List<String> debug_messages = [];
@@ -54,10 +59,17 @@ void debug(dynamic msg) {
 }
 
 
+/*
+ * Simplify string representation of a floating point value
+ * Basically, don't display fractional component if it is an integer
+ */
 String simpleNumberString(double number) {
-  // Ref: https://stackoverflow.com/questions/55152175/how-to-remove-trailing-zeros-using-dart
 
-  return number.toStringAsFixed(number.truncateToDouble() == number ? 0 : 1);
+  if (number.toInt() == number) {
+    return number.toInt().toString();
+  } else {
+    return number.toString();
+  }
 }
 
 /*
@@ -77,6 +89,19 @@ Future<void> playAudioFile(String path) async {
 
   final player = AudioPlayer();
   player.play(AssetSource(path));
+}
+
+
+// Open an external URL
+Future<void> openLink(String url) async {
+
+  final link = Uri.parse(url);
+
+  try {
+    await launchUrl(link);
+  } catch (e) {
+    showSnackIcon(L10().error, success: false);
+  }
 }
 
 
@@ -109,3 +134,4 @@ String renderCurrency(double? amount, String currency, {int decimals = 2}) {
 
   return value;
 }
+

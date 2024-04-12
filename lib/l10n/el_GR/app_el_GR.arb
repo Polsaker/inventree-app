@@ -1,5 +1,5 @@
 {
-  "@@locale": "en",
+  "@@locale": "el",
   "appTitle": "InvenTree",
   "@appTitle": {
     "description": "InvenTree application title string"
@@ -28,8 +28,10 @@
   "@availableStock": {},
   "barcodeAssign": "Αντιστοίχιση Barcode",
   "@barcodeAssign": {},
+  "@barodeScanPaused": {},
   "categoryCreate": "Νέα Κατηγορία",
   "@categoryCreate": {},
   "@homeShowSubscsribedDescription": {},
-  "@homeShowSupplierDescription": {}
+  "@homeShowSupplierDescription": {},
+  "@saleOrderCreate": {}
 }

@@ -11,12 +11,22 @@ import "package:path/path.dart";
 // Settings key values
 const String INV_HOME_SHOW_SUBSCRIBED = "homeShowSubscribed";
 const String INV_HOME_SHOW_PO = "homeShowPo";
+const String INV_HOME_SHOW_SO = "homeShowSo";
 const String INV_HOME_SHOW_MANUFACTURERS = "homeShowManufacturers";
 const String INV_HOME_SHOW_CUSTOMERS = "homeShowCustomers";
 const String INV_HOME_SHOW_SUPPLIERS = "homeShowSuppliers";
 
+const String INV_SCREEN_ORIENTATION = "appScreenOrientation";
+
+// Available screen orientation values
+const int SCREEN_ORIENTATION_SYSTEM = 0;
+const int SCREEN_ORIENTATION_PORTRAIT = 1;
+const int SCREEN_ORIENTATION_LANDSCAPE = 2;
+
 const String INV_SOUNDS_BARCODE = "barcodeSounds";
 const String INV_SOUNDS_SERVER = "serverSounds";
+
+const String INV_ENABLE_LABEL_PRINTING = "enableLabelPrinting";
 
 // Part settings
 const String INV_PART_SHOW_PARAMETERS = "partShowParameters";
@@ -24,9 +34,19 @@ const String INV_PART_SHOW_BOM = "partShowBom";
 
 // Stock settings
 const String INV_STOCK_SHOW_HISTORY = "stockShowHistory";
+const String INV_STOCK_SHOW_TESTS = "stockShowTests";
 
 const String INV_REPORT_ERRORS = "reportErrors";
 const String INV_STRICT_HTTPS = "strictHttps";
+
+// Barcode settings
+const String INV_BARCODE_SCAN_DELAY = "barcodeScanDelay";
+const String INV_BARCODE_SCAN_TYPE = "barcodeScanType";
+const String INV_BARCODE_SCAN_SINGLE = "barcodeScanSingle";
+
+// Barcode scanner types
+const int BARCODE_CONTROLLER_CAMERA = 0;
+const int BARCODE_CONTROLLER_WEDGE = 1;
 
 /*
  * Class for storing InvenTree preferences in a NoSql DB
@@ -115,7 +135,12 @@ class InvenTreeSettingsManager {
 
   Future<dynamic> getValue(String key, dynamic backup) async {
 
-    final value = await store.record(key).get(await _db);
+    dynamic value = await store.record(key).get(await _db);
+
+    // Retrieve value
+    if (value == "__null__") {
+      value = null;
+    }
 
     if (value == null) {
       return backup;
@@ -137,32 +162,11 @@ class InvenTreeSettingsManager {
     }
   }
 
-  // Load a tristate (true / false / null) setting
-  Future<bool?> getTriState(String key, dynamic backup) async {
-    final dynamic value = await getValue(key, backup);
-
-    if (value == null) {
-      return null;
-    } else if (value is bool) {
-      return value;
-    } else {
-      String s = value.toString().toLowerCase();
-
-      if (s.contains("t")) {
-        return true;
-      } else if (s.contains("f")) {
-        return false;
-      } else {
-        return null;
-      }
-    }
-  }
-
   // Store a key:value pair in the database
   Future<void> setValue(String key, dynamic value) async {
 
     // Encode null values as strings
-    value ??= "null";
+    value ??= "__null__";
 
     await store.record(key).put(await _db, value);
   }

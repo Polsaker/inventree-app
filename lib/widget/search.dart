@@ -1,5 +1,5 @@
 import "dart:async";
-
+import "package:async/async.dart";
 import "package:flutter/material.dart";
 import "package:font_awesome_flutter/font_awesome_flutter.dart";
 
@@ -11,13 +11,13 @@ import "package:inventree/inventree/part.dart";
 import "package:inventree/inventree/purchase_order.dart";
 import "package:inventree/inventree/stock.dart";
 
-import "package:inventree/widget/part_list.dart";
-import "package:inventree/widget/purchase_order_list.dart";
+import "package:inventree/widget/part/part_list.dart";
+import "package:inventree/widget/order/purchase_order_list.dart";
 import "package:inventree/widget/refreshable_state.dart";
-import "package:inventree/widget/stock_list.dart";
-import "package:inventree/widget/category_list.dart";
-import "package:inventree/widget/company_list.dart";
-import "package:inventree/widget/location_list.dart";
+import "package:inventree/widget/stock/stock_list.dart";
+import "package:inventree/widget/part/category_list.dart";
+import "package:inventree/widget/company/company_list.dart";
+import "package:inventree/widget/stock/location_list.dart";
 
 
 // Widget for performing database-wide search
@@ -40,21 +40,15 @@ class _SearchDisplayState extends RefreshableState<SearchWidget> {
 
   final bool hasAppBar;
 
-  @override
-  void initState() {
-    super.initState();
-
-    _focusNode = FocusNode();
-  }
+  CancelableOperation<void>? _search_query;
 
   @override
   void dispose() {
-    _focusNode.dispose();
     super.dispose();
   }
 
   @override
-  String getAppBarTitle(BuildContext context) => L10().search;
+  String getAppBarTitle() => L10().search;
 
   @override
   AppBar? buildAppBar(BuildContext context, GlobalKey<ScaffoldState> key) {
@@ -99,8 +93,6 @@ class _SearchDisplayState extends RefreshableState<SearchWidget> {
   int nSupplierResults = 0;
   int nPurchaseOrderResults = 0;
 
-  late FocusNode _focusNode;
-
   // Callback when the text is being edited
   // Incorporates a debounce timer to restrict search frequency
   void onSearchTextChanged(String text, {bool immediate = false}) {
@@ -114,9 +106,6 @@ class _SearchDisplayState extends RefreshableState<SearchWidget> {
     } else {
       debounceTimer = Timer(Duration(milliseconds: 250), () {
         search(text);
-        if (!_focusNode.hasFocus) {
-          _focusNode.requestFocus();
-        }
       });
     }
   }
@@ -147,12 +136,36 @@ class _SearchDisplayState extends RefreshableState<SearchWidget> {
     return count;
   }
 
+  // Actually perform the search query
+  Future<void> _perform_search(Map<String, dynamic> body) async {
+    InvenTreeAPI().post(
+      "search/",
+      body: body,
+      expectedStatusCode: 200).then((APIResponse response) {
+        decrementPendingSearches();
+
+
+        Map<String, dynamic> results = {};
+
+        if (response.data is Map<String, dynamic>) {
+          results = response.data as Map<String, dynamic>;
+        }
+
+        if (mounted) {
+          setState(() {
+            nPartResults = getSearchResultCount(results, "part");
+            nCategoryResults = getSearchResultCount(results, "partcategory");
+            nStockResults = getSearchResultCount(results, "stockitem");
+            nLocationResults = getSearchResultCount(results, "stocklocation");
+            nSupplierResults = 0; //getSearchResultCount(results, "")
+            nPurchaseOrderResults = getSearchResultCount(results, "purchaseorder");
+          });
+        }
+    });
+  }
+
   /*
-   * Initiate multiple search requests to the server.
-   * Each request returns at *some point* in the future,
-   * by which time the search input may have changed, giving unexpected results.
-   *
-   * So, each request only causes an update *if* the search term is still the same when it completes
+   * Callback when the search input is changed
    */
   Future<void> search(String term) async {
     var api = InvenTreeAPI();
@@ -173,6 +186,15 @@ class _SearchDisplayState extends RefreshableState<SearchWidget> {
       nPendingSearches = 0;
     });
 
+    // Cancel the previous search query (if in progress)
+    if (_search_query != null) {
+      if (!_search_query!.isCanceled) {
+        _search_query!.cancel();
+      }
+    }
+
+    _search_query = null;
+
     if (term.isEmpty) {
       return;
     }
@@ -185,29 +207,29 @@ class _SearchDisplayState extends RefreshableState<SearchWidget> {
       };
 
       // Part search
-      if (api.checkPermission("part", "view")) {
+      if (InvenTreePart().canView) {
         body["part"] = {};
       }
 
       // PartCategory search
-      if (api.checkPermission("part_category", "view")) {
+      if (InvenTreePartCategory().canView) {
         body["partcategory"] = {};
       }
 
       // StockItem search
-      if (api.checkPermission("stock", "view")) {
+      if (InvenTreeStockItem().canView) {
         body["stockitem"] = {
           "in_stock": true,
         };
       }
 
       // StockLocation search
-      if (api.checkPermission("stock_location", "view")) {
+      if (InvenTreeStockLocation().canView) {
         body["stocklocation"] = {};
       }
 
       // PurchaseOrder search
-      if (api.checkPermission("purchase_order", "view")) {
+      if (InvenTreePurchaseOrder().canView) {
         body["purchaseorder"] = {
           "outstanding": true
         };
@@ -216,29 +238,9 @@ class _SearchDisplayState extends RefreshableState<SearchWidget> {
       if (body.isNotEmpty) {
         nPendingSearches++;
 
-        api.post(
-            "search/",
-            body: body,
-            expectedStatusCode: 200).then((APIResponse response) {
-          decrementPendingSearches();
-
-          Map<String, dynamic> results = {};
-
-          if (response.data is Map<String, dynamic>) {
-            results = response.data as Map<String, dynamic>;
-          }
-
-          if (mounted) {
-            setState(() {
-              nPartResults = getSearchResultCount(results, "part");
-              nCategoryResults = getSearchResultCount(results, "partcategory");
-              nStockResults = getSearchResultCount(results, "stockitem");
-              nLocationResults = getSearchResultCount(results, "stocklocation");
-              nSupplierResults = 0; //getSearchResultCount(results, "")
-              nPurchaseOrderResults = getSearchResultCount(results, "purchaseorder");
-            });
-          }
-        });
+        _search_query = CancelableOperation.fromFuture(
+          _perform_search(body),
+        );
       }
     } else {
       legacySearch(term);
@@ -251,7 +253,7 @@ class _SearchDisplayState extends RefreshableState<SearchWidget> {
   Future<void> legacySearch(String term) async {
 
     // Search parts
-    if (api.checkPermission("part", "view")) {
+    if (InvenTreePart().canView) {
       nPendingSearches++;
       InvenTreePart().count(searchQuery: term).then((int n) {
         if (term == searchController.text) {
@@ -266,7 +268,7 @@ class _SearchDisplayState extends RefreshableState<SearchWidget> {
     }
 
     // Search part categories
-    if (api.checkPermission("part_category", "view")) {
+    if (InvenTreePartCategory().canView) {
       nPendingSearches++;
       InvenTreePartCategory().count(searchQuery: term,).then((int n) {
         if (term == searchController.text) {
@@ -281,7 +283,7 @@ class _SearchDisplayState extends RefreshableState<SearchWidget> {
     }
 
     // Search stock items
-    if (api.checkPermission("stock", "view")) {
+    if (InvenTreeStockItem().canView) {
       nPendingSearches++;
       InvenTreeStockItem().count(searchQuery: term).then((int n) {
         if (term == searchController.text) {
@@ -296,7 +298,7 @@ class _SearchDisplayState extends RefreshableState<SearchWidget> {
     }
 
     // Search stock locations
-    if (api.checkPermission("stock_location", "view")) {
+    if (InvenTreeStockLocation().canView) {
       nPendingSearches++;
       InvenTreeStockLocation().count(searchQuery: term).then((int n) {
         if (term == searchController.text) {
@@ -311,7 +313,7 @@ class _SearchDisplayState extends RefreshableState<SearchWidget> {
     }
 
     // Search purchase orders
-    if (api.checkPermission("purchase_order", "view")) {
+    if (InvenTreePurchaseOrder().canView) {
      nPendingSearches++;
       InvenTreePurchaseOrder().count(
           searchQuery: term,
@@ -331,7 +333,8 @@ class _SearchDisplayState extends RefreshableState<SearchWidget> {
     }
   }
 
-  List<Widget> _tiles(BuildContext context) {
+  @override
+  List<Widget> getTiles(BuildContext context) {
 
     List<Widget> tiles = [];
 
@@ -344,26 +347,22 @@ class _SearchDisplayState extends RefreshableState<SearchWidget> {
           ),
           key: _formKey,
           readOnly: false,
-          autofocus: false,
+          autofocus: true,
           autocorrect: false,
-          focusNode: _focusNode,
           controller: searchController,
           onChanged: (String text) {
             onSearchTextChanged(text);
-            _focusNode.requestFocus();
           },
           onFieldSubmitted: (String text) {
-            _focusNode.requestFocus();
           },
         ),
         trailing: GestureDetector(
           child: FaIcon(
             searchController.text.isEmpty ? FontAwesomeIcons.magnifyingGlass : FontAwesomeIcons.deleteLeft,
-            color: searchController.text.isEmpty ? COLOR_CLICK : COLOR_DANGER,
+            color: searchController.text.isEmpty ? COLOR_ACTION : COLOR_DANGER,
           ),
           onTap: () {
             searchController.clear();
-            _focusNode.requestFocus();
             onSearchTextChanged("", immediate: true);
           },
         ),
@@ -541,22 +540,7 @@ class _SearchDisplayState extends RefreshableState<SearchWidget> {
       }
     }
 
-    if (!_focusNode.hasFocus) {
-      _focusNode.requestFocus();
-    }
-
     return tiles;
   }
 
-  @override
-  Widget getBody(BuildContext context) {
-    return Center(
-      child: ListView(
-        children: ListTile.divideTiles(
-          context: context,
-          tiles: _tiles(context),
-        ).toList()
-      )
-    );
-  }
 }

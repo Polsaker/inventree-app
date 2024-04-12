@@ -1,5 +1,7 @@
 {
-  "@@locale": "en",
+  "@@locale": "he",
+  "@barodeScanPaused": {},
   "@homeShowSubscsribedDescription": {},
-  "@homeShowSupplierDescription": {}
+  "@homeShowSupplierDescription": {},
+  "@saleOrderCreate": {}
 }

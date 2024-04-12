@@ -25,7 +25,8 @@ jobs:
     - name: Setup Flutter
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.7.3'
+        flutter-version: '3.13.0'
+        channel: 'stable'
     - name: Collect Translation Files
       run: |
         cd lib/l10n
@@ -37,5 +38,4 @@ jobs:
         pod repo update
         pod install
         cd ..
-        cp lib/dummy_dsn.dart lib/dsn.dart
         flutter build ios --release --no-codesign --no-tree-shake-icons
